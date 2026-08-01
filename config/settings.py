@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 import os
 from datetime import timedelta
 from pathlib import Path
+from typing import cast
 
 from dotenv import load_dotenv
 
@@ -31,7 +32,7 @@ SECRET_KEY = os.getenv(
 )
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv("DEBUG", True)
+DEBUG = cast(bool, os.getenv("DEBUG", "True"))
 
 ALLOWED_HOSTS = ["*"]
 

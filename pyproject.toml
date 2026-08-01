@@ -5,21 +5,24 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "django>=6.0.7",
-    "django-cors-headers>=4.9.0",
-    "django-filter>=26.1",
-    "djangorestframework>=3.17.1",
-    "djangorestframework-simplejwt>=5.5.1",
-    "drf-spectacular>=0.30.0",
-    "python-dotenv>=1.2.2",
+  "django>=6.0.7",
+  "django-cors-headers>=4.9.0",
+  "django-filter>=26.1",
+  "djangorestframework>=3.17.1",
+  "djangorestframework-simplejwt>=5.5.1",
+  "drf-spectacular>=0.30.0",
+  "python-dotenv>=1.2.2",
 ]
 
 [dependency-groups]
 dev = [
-    "django-stubs>=6.0.7",
-    "django-stubs-ext>=6.0.7",
-    "django-types>=0.24.0",
-    "djangorestframework-stubs>=3.17.1",
-    "ruff>=0.16.1",
-    "ty>=0.0.65",
+  "django-stubs>=6.0.7",
+  "django-stubs-ext>=6.0.7",
+  "django-types>=0.24.0",
+  "djangorestframework-stubs>=3.17.1",
+  "ruff>=0.16.1",
+  "ty>=0.0.65",
 ]
+
+[tool.ruff.lint]
+ignore = ["RUF012"]

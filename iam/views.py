@@ -59,7 +59,7 @@ User = get_user_model()
 )
 class AuthViewSet(viewsets.GenericViewSet):
     def get_permissions(self):
-        if self.action in ("login", "refresh", "register"):
+        if self.action in ("login", "refresh", "register", "logout"):
             return [AllowAny()]
         return [IsAuthenticated()]
 

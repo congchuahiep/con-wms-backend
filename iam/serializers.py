@@ -11,6 +11,11 @@ class UserProfileSerializer(serializers.ModelSerializer):
 
 
 class LoginSerializer(TokenObtainPairSerializer):
+    default_error_messages = {
+        "no_active_account": "Tài khoản hoặc mật khẩu không chính xác",
+        "invalid_token": "Phiên đăng nhập không hợp lệ hoặc đã hết hạn",
+    }
+
     @classmethod
     def get_token(cls, user: User):
         token = super().get_token(user)
