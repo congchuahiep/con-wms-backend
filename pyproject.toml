@@ -13,3 +13,13 @@ dependencies = [
     "drf-spectacular>=0.30.0",
     "python-dotenv>=1.2.2",
 ]
+
+[dependency-groups]
+dev = [
+    "django-stubs>=6.0.7",
+    "django-stubs-ext>=6.0.7",
+    "django-types>=0.24.0",
+    "djangorestframework-stubs>=3.17.1",
+    "ruff>=0.16.1",
+    "ty>=0.0.65",
+]
