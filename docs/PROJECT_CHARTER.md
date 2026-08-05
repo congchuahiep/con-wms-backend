@@ -19,7 +19,7 @@ Hệ thống cần giúp: lưu trữ danh mục vật tư, quản lý nhiều kh
 ## 3. Mục tiêu dự án (SMART)
 
 - **Nghiệp vụ:** Giảm thời gian ghi nhận nhập/xuất từ "vài phút/phiếu" xuống **< 30 giây/phiếu** nhờ barcode; độ chính xác sổ sách ≥ 99% sau kiểm kê.
-- **Sản phẩm:** Web app dùng được 100% trên máy văn phòng công ty, không cần cài đặt app, không cần kết nối internet ngoài (chỉ cần mạng LAN).
+- **Sản phẩm:** Web app dùng được 100% trên máy văn phòng và các kho ở địa điểm khác nhau, không cần cài đặt app. Deploy trên cloud VPS, truy cập qua internet.
 - **Học thuật:** Hoàn chỉnh 1 dự án full-stack có đủ 5 chức năng cốt lõi, có tài liệu thiết kế rõ ràng.
 
 ## 4. Đối tượng sử dụng (Stakeholders)
@@ -98,11 +98,11 @@ Hệ thống cần giúp: lưu trữ danh mục vật tư, quản lý nhiều kh
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Hiệu năng        | Phiếu ≤ 50 dòng load < 1.5s; quét barcode phản hồi tức thì (< 100ms sau khi mã vạch gửi xong)                                                           |
 | Bảo mật          | Đăng nhập JWT, role: admin/thủ kho/chủ nhiệm/kế toán; log thao tác quan trọng (xóa phiếu, điều chỉnh tồn)                                               |
-| Khả dụng         | Chạy trên mạng nội bộ LAN công ty; uptime mục tiêu trong giờ hành chính ~ 99%                                                                           |
+| Khả dụng         | Deploy trên cloud VPS, truy cập qua internet từ mọi địa điểm; uptime mục tiêu trong giờ hành chính ~ 99%                                                |
 | Năng lực sử dụng | Thủ kho có thể ≥ 45 tuổi, ít tin học — UI phải lớn, ít nút, phím tắt Enter để xuống dòng tiếp theo khi nhập phiếu                                       |
 | Khả bảo trì      | Tách module Django apps theo nghiệp vụ: catalog, inventory, warehouse, supplier, stocktake, reports, users                                              |
 | Nền tảng         | Backend: Django 6 + DRF + SQLite/PostgreSQL; Frontend: Next.js (App Router) + TailwindCSS, lấy dữ liệu qua REST; barcode USB HID (gõ thẳng vào ô input) |
-| Triển khai       | Chạy trên 1 máy chủ văn phòng (Windows hoặc Linux), Docker compose tùy chọn                                                                             |
+| Triển khai       | Deploy trên cloud VPS (Ubuntu + Docker Compose); truy cập qua HTTPS, domain hoặc IP tĩnh                                                                |
 
 ## 7. Rủi ro & giải pháp
 

@@ -26,7 +26,9 @@ class IsAdminOrStorekeeper(BasePermission):
 
 
 class IsAdminOrAccountant(BasePermission):
-    """Admin hoặc kế toán."""
+    """
+    Admin hoặc kế toán.
+    """
 
     def has_permission(self, request, view):
         return request.user.is_authenticated and request.user.role in (
