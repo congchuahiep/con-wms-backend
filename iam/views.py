@@ -72,6 +72,8 @@ class AuthViewSet(viewsets.GenericViewSet):
             return LogoutSerializer
         if self.action == "me":
             return UserProfileSerializer
+        if self.action == "refresh":
+            return TokenRefreshSerializer
         return super().get_serializer_class()
 
     @action(detail=False, methods=["post"], url_path="login")
