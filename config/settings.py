@@ -55,6 +55,7 @@ INSTALLED_APPS = [
     "iam",
     "warehouse",
     "catalog",
+    "supplier",
 ]
 
 MIDDLEWARE = [
@@ -143,6 +144,7 @@ STATIC_URL = "static/"
 
 # DRF
 REST_FRAMEWORK = {
+    "EXCEPTION_HANDLER": "config.exceptions.exception_handler",
     "DEFAULT_AUTHENTICATION_CLASSES": (
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ),

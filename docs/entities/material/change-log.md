@@ -1,5 +1,16 @@
 # Change Log — Material + Category + Unit
 
+## v1.3 — 2026-08-12
+
+**Xóa cứng (hard delete) toàn bộ + bỏ trường `is_active`.**
+
+| #   | Thay đổi                                                          | Lý do                                                                     |
+| --- | ----------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| 1   | Xoá `is_active` khỏi 4 model: MaterialCategory, Unit, Material, UnitConversion | Soft delete gây phiền phức, không cần audit trail cho catalog            |
+| 2   | `DELETE` tất cả endpoint → hard delete + trả về `200 OK` + serializer data | Client nhận object vừa xóa để cập nhật local state, thay vì 204 mặc định |
+| 3   | Bỏ `filter(is_active=True)` khỏi tất cả queryset + serializer | Tất cả object tồn tại đều là "active"                                    |
+| 4   | Serialize trước khi delete để tránh lỗi `instance needs PK`      | `children.all()` cần PK còn tồn tại                                       |
+
 ## v1.2 — 2026-08-07
 
 **API trả về cây lồng đệ quy + dạng phẳng qua `?flat=true` + thêm trường `color`.**

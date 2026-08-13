@@ -27,7 +27,6 @@ class MaterialCategory(models.Model):
         verbose_name="Danh mục cha",
     )
     description = models.TextField(blank=True, verbose_name="Mô tả")
-    is_active = models.BooleanField(default=True, verbose_name="Đang sử dụng")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Ngày tạo")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="Ngày cập nhật")
 
@@ -40,7 +39,7 @@ class MaterialCategory(models.Model):
         ]
 
     def __str__(self):
-        return f"{self.code} — {self.name}"
+        return self.name
 
 
 class Unit(models.Model):
@@ -55,7 +54,6 @@ class Unit(models.Model):
         default=UnitConversionType.GLOBAL,
         verbose_name="Loại quy đổi",
     )
-    is_active = models.BooleanField(default=True, verbose_name="Đang sử dụng")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Ngày tạo")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="Ngày cập nhật")
 
@@ -65,7 +63,7 @@ class Unit(models.Model):
         verbose_name_plural = "Đơn vị tính"
 
     def __str__(self):
-        return f"{self.code} ({self.name})"
+        return self.name
 
 
 class Material(models.Model):
@@ -87,7 +85,6 @@ class Material(models.Model):
         verbose_name="Đơn vị tính",
     )
     description = models.TextField(blank=True, verbose_name="Mô tả")
-    is_active = models.BooleanField(default=True, verbose_name="Đang sử dụng")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Ngày tạo")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="Ngày cập nhật")
 
@@ -100,7 +97,7 @@ class Material(models.Model):
         ]
 
     def __str__(self):
-        return f"{self.code} — {self.name}"
+        return self.name
 
 
 class UnitConversion(models.Model):
@@ -130,7 +127,6 @@ class UnitConversion(models.Model):
         related_name="unit_conversions",
         verbose_name="Áp dụng cho vật tư",
     )
-    is_active = models.BooleanField(default=True, verbose_name="Đang áp dụng")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Ngày tạo")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="Ngày cập nhật")
 

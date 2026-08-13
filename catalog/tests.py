@@ -50,6 +50,7 @@ class MaterialCategoryAPITests(TestCase):
 
         self.list_url = reverse("category-list")
         self.detail_url = reverse("category-detail", kwargs={"pk": self.vlxd.pk})
+        self.cat_detail_url = reverse("category-detail", kwargs={"pk": self.cat.pk})
 
     # ─── GET list — tree mode (default) ─────────────────────────
 
@@ -170,20 +171,34 @@ class MaterialCategoryAPITests(TestCase):
         self.assertEqual(resp.data["name"], "VLXD Updated")
         self.assertEqual(resp.data["color"], "cyan")
 
-    # ─── DELETE soft delete ─────────────────────────────────────
+    # ─── DELETE hard delete ─────────────────────────────────────
 
-    def test_soft_delete_category(self):
+    def test_delete_category(self):
+        """Xóa cứng node lá (CAT) — trả về 200 + serializer data."""
         self.client.force_authenticate(self.admin)
-        resp = self.client.delete(self.detail_url)
-        self.assertEqual(resp.status_code, status.HTTP_204_NO_CONTENT)
-        self.vlxd.refresh_from_db()
-        self.assertFalse(self.vlxd.is_active)
+        resp = self.client.delete(self.cat_detail_url)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(resp.data["code"], self.cat.code)
+        with self.assertRaises(MaterialCategory.DoesNotExist):
+            MaterialCategory.objects.get(pk=self.cat.pk)
 
-    def test_soft_deleted_not_in_list(self):
+    def test_deleted_not_in_list(self):
         self.client.force_authenticate(self.admin)
-        self.client.delete(self.detail_url)
+        self.client.delete(self.cat_detail_url)
         resp = self.client.get(self.list_url)
-        self.assertEqual(len(resp.data), 0)
+        self.assertEqual(len(resp.data), 1)  # chỉ còn VLXD root
+
+    def test_delete_category_blocked_by_material(self):
+        """Xóa danh mục đang có Material liên kết → 409 Conflict."""
+        Material.objects.create(
+            code="DA-1X2", name="Đá 1x2", category=self.cat, unit=Unit.objects.create(code="M3", name="Mét khối")
+        )
+        self.client.force_authenticate(self.admin)
+        resp = self.client.delete(self.cat_detail_url)
+        self.assertEqual(resp.status_code, status.HTTP_409_CONFLICT)
+        self.assertIn("detail", resp.data)
+        self.assertIn("blocked_by", resp.data)
+        self.assertIn("Vật tư — Đá 1x2", resp.data["blocked_by"][0])
 
 
 class MaterialAPITests(TestCase):
@@ -314,14 +329,15 @@ class MaterialAPITests(TestCase):
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
         self.assertEqual(resp.data["name"], "Xi măng Hà Tiên PCB40 (updated)")
 
-    # ─── DELETE soft delete ─────────────────────────────────────
+    # ─── DELETE hard delete ─────────────────────────────────────
 
-    def test_soft_delete_material(self):
+    def test_delete_material(self):
         self.client.force_authenticate(self.admin)
         resp = self.client.delete(self.detail_url)
-        self.assertEqual(resp.status_code, status.HTTP_204_NO_CONTENT)
-        self.material.refresh_from_db()
-        self.assertFalse(self.material.is_active)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(resp.data["code"], self.material.code)
+        with self.assertRaises(Material.DoesNotExist):
+            Material.objects.get(pk=self.material.pk)
 
 
 class UnitAPITests(TestCase):
@@ -365,12 +381,25 @@ class UnitAPITests(TestCase):
         )
         self.assertEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
 
-    def test_soft_delete_unit(self):
+    def test_delete_unit(self):
         self.client.force_authenticate(self.admin)
         resp = self.client.delete(self.detail_url)
-        self.assertEqual(resp.status_code, status.HTTP_204_NO_CONTENT)
-        self.unit.refresh_from_db()
-        self.assertFalse(self.unit.is_active)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(resp.data["code"], self.unit.code)
+        with self.assertRaises(Unit.DoesNotExist):
+            Unit.objects.get(pk=self.unit.pk)
+
+    def test_delete_unit_blocked_by_material(self):
+        """Xóa Unit đang được Material liên kết → 409 Conflict."""
+        Material.objects.create(
+            code="XM-TEST", name="Test",
+            category=MaterialCategory.objects.create(code="TEST", name="Test"),
+            unit=self.unit,
+        )
+        self.client.force_authenticate(self.admin)
+        resp = self.client.delete(self.detail_url)
+        self.assertEqual(resp.status_code, status.HTTP_409_CONFLICT)
+        self.assertIn("blocked_by", resp.data)
 
 
 class UnitConversionAPITests(TestCase):
@@ -540,6 +569,6 @@ class UnitConversionAPITests(TestCase):
             "unit-conversion-detail", kwargs={"pk": self.mat_conv.pk}
         )
         resp = self.client.delete(url)
-        self.assertEqual(resp.status_code, status.HTTP_204_NO_CONTENT)
-        self.mat_conv.refresh_from_db()
-        self.assertFalse(self.mat_conv.is_active)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        with self.assertRaises(UnitConversion.DoesNotExist):
+            UnitConversion.objects.get(pk=self.mat_conv.pk)

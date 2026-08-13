@@ -38,7 +38,6 @@
     - [x] Truyền `from_unit` vào serializer context
 - [x] `UnitConversionViewSet`:
     - [x] `destroy` → hard delete + trả về 200 + object vừa xóa
-    - [x] Bỏ filter `is_active=True` (không còn soft delete)
     - [x] Permission: `IsAdminOrStorekeeper`
 - [x] Cập nhật extend_schema description/tags
 

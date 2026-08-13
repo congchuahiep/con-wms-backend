@@ -56,7 +56,6 @@ class MaterialCategorySerializer(serializers.ModelSerializer):
             "parent_id",
             "children",
             "description",
-            "is_active",
             "created_at",
             "updated_at",
         ]
@@ -64,7 +63,7 @@ class MaterialCategorySerializer(serializers.ModelSerializer):
 
     @extend_schema_field(serializers.ListField(child=serializers.DictField()))
     def get_children(self, obj):
-        children = obj.children.filter(is_active=True)
+        children = obj.children.all()
         if not children.exists():
             return []
         return MaterialCategorySerializer(children, many=True).data
@@ -94,7 +93,6 @@ class MaterialCategoryFlatSerializer(serializers.ModelSerializer):
             "color",
             "parent",
             "depth",
-            "is_active",
         ]
 
     def get_depth(self, obj):
@@ -120,7 +118,6 @@ class UnitSerializer(serializers.ModelSerializer):
             "code",
             "name",
             "conversion_type",
-            "is_active",
             "created_at",
             "updated_at",
         ]
@@ -129,18 +126,18 @@ class UnitSerializer(serializers.ModelSerializer):
 
 class UnitConversionSerializer(serializers.ModelSerializer):
     from_unit_id = serializers.PrimaryKeyRelatedField(
-        queryset=Unit.objects.filter(is_active=True),
+        queryset=Unit.objects.all(),
         source="from_unit",
         write_only=True,
         required=False,
     )
     to_unit_id = serializers.PrimaryKeyRelatedField(
-        queryset=Unit.objects.filter(is_active=True),
+        queryset=Unit.objects.all(),
         source="to_unit",
         write_only=True,
     )
     material_id = serializers.PrimaryKeyRelatedField(
-        queryset=Material.objects.filter(is_active=True),
+        queryset=Material.objects.all(),
         source="material",
         write_only=True,
         required=False,
@@ -165,7 +162,6 @@ class UnitConversionSerializer(serializers.ModelSerializer):
             "factor",
             "material",
             "is_reverse",
-            "is_active",
             "created_at",
             "updated_at",
         ]
@@ -286,7 +282,6 @@ class UnitConversionSerializer(serializers.ModelSerializer):
                         ),
                     ),
                     ("is_reverse", True),
-                    ("is_active", instance.is_active),
                     (
                         "created_at",
                         instance.created_at.isoformat()
@@ -318,7 +313,6 @@ class DetailedUnitSerializer(serializers.ModelSerializer):
             "code",
             "name",
             "conversion_type",
-            "is_active",
             "created_at",
             "updated_at",
             "conversions",
@@ -330,7 +324,7 @@ class DetailedUnitSerializer(serializers.ModelSerializer):
         result = []
 
         # 1. Direct conversions
-        direct = obj.conversions_from.filter(is_active=True).select_related(
+        direct = obj.conversions_from.select_related(
             "to_unit", "material"
         )
         result.extend(
@@ -340,7 +334,7 @@ class DetailedUnitSerializer(serializers.ModelSerializer):
         # 2. Reverse conversions — only for global units
         if obj.conversion_type == "global":
             reverse = UnitConversion.objects.filter(
-                to_unit=obj, is_active=True, material__isnull=True
+                to_unit=obj, material__isnull=True
             ).select_related("from_unit")
 
             ctx = {**self.context, "reverse": True}
@@ -353,12 +347,12 @@ class DetailedUnitSerializer(serializers.ModelSerializer):
 
 class MaterialSerializer(serializers.ModelSerializer):
     category_id = serializers.PrimaryKeyRelatedField(
-        queryset=MaterialCategory.objects.filter(is_active=True),
+        queryset=MaterialCategory.objects.all(),
         source="category",
         write_only=True,
     )
     unit_id = serializers.PrimaryKeyRelatedField(
-        queryset=Unit.objects.filter(is_active=True),
+        queryset=Unit.objects.all(),
         source="unit",
         write_only=True,
     )
@@ -376,7 +370,6 @@ class MaterialSerializer(serializers.ModelSerializer):
             "unit_id",
             "unit",
             "description",
-            "is_active",
             "created_at",
             "updated_at",
         ]

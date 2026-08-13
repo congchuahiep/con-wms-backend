@@ -8,10 +8,10 @@
 ## Model
 
 - [x] `catalog/models.py`: định nghĩa 4 model
-    - `MaterialCategory` (9 fields, tree: `parent` FK self, `color` CharField nullable)
-    - `Unit` (6 fields)
-    - `UnitConversion` (8 fields, `from_unit` FK, `to_unit` FK, `material` FK nullable)
-    - `Material` (9 fields, `category` FK, `unit` FK)
+    - `MaterialCategory` (8 fields, tree: `parent` FK self, `color` CharField nullable)
+    - `Unit` (5 fields)
+    - `UnitConversion` (7 fields, `from_unit` FK, `to_unit` FK, `material` FK nullable)
+    - `Material` (8 fields, `category` FK, `unit` FK)
 - [x] `catalog/admin.py`: đăng ký 4 model với `@admin.register`
 - [x] Chạy `python manage.py makemigrations catalog` + `migrate`
 
@@ -32,9 +32,9 @@
         - `@action(detail=True, methods=['get'], url_path='conversions')` → list conversions của unit này
         - `@action(detail=True, methods=['post'], url_path='conversions')` → tạo conversion với `from_unit` = unit này
     - `UnitConversionViewSet` — chỉ PUT + DELETE (GET list + POST create đã có ở UnitViewSet actions)
-    - `MaterialViewSet` — paginate mặc định; search `code`, `name`; filter `category`, `is_active`
+    - `MaterialViewSet` — paginate mặc định; search `code`, `name`; filter `category`
 - [ ] `catalog/filters.py`:
-    - `MaterialFilter` — filter `category`, `is_active`; search `code`, `name`
+    - `MaterialFilter` — filter `category`; search `code`, `name`
 
 ## URLs
 
@@ -50,12 +50,12 @@
 
 ## Tests
 
-- [x] `catalog/tests.py`: 35 tests
-    - MaterialCategory: 15 tests (tree mode, flat mode, depth, color, CRUD, permissions, soft-delete)
+- [x] `catalog/tests.py`: 39 tests
+    - MaterialCategory: 15 tests (tree mode, flat mode, depth, color, CRUD, permissions, hard-delete)
     - Material: 10 tests (GET list/detail auth+unauth, POST admin+storekeeper+unauth, PUT, DELETE)
     - Unit: 5 tests (CRUD + permissions)
-    - UnitConversion: 5 tests (nested GET, POST material+global, PUT, DELETE)
-- [x] Chạy `python manage.py test catalog` → 35/35 OK
+    - UnitConversion: 9 tests (nested GET, POST material+global, PUT, DELETE)
+- [x] Chạy `python manage.py test catalog` → 39/39 OK
 
 ## Seed Data
 

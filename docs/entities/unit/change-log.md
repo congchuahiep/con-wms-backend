@@ -1,5 +1,18 @@
 # Change Log — Unit + UnitConversion
 
+## v1.4 — 2026-08-12
+
+**Bỏ trường `is_active` khỏi model Unit + UnitConversion — toàn bộ catalog chuyển sang hard delete.**
+
+| # | Thay đổi | Lý do |
+|---|---|---|
+| 1 | Xoá `is_active` khỏi model `Unit` và `UnitConversion` | Soft delete gây phiền phức, không còn cần cho catalog |
+| 2 | `DELETE /api/units/{id}/` → hard delete + 200 + serializer data | Đồng nhất với UnitConversion và các entity khác |
+| 3 | Bỏ `isActive` khỏi tất cả response serializer | Trường không còn tồn tại trong DB |
+| 4 | Serialize trước khi delete (cache `serializer.data`) | Tránh lỗi `instance needs PK` khi truy cập relations sau delete |
+
+---
+
 ## v1.3 — 2026-08-11
 
 **Refactor lớn: `conversion_type` + reverse virtual + gộp response + partial unique + hard delete.**
