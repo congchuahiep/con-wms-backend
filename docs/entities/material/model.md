@@ -53,6 +53,7 @@ Không có enum riêng. Các đơn vị tính được lưu dưới dạng model
 | **D7**   | **Timestamps `created_at` + `updated_at`**       | Chuẩn cho mọi entity, hỗ trợ audit trail.                                                                                                                                                                                                |
 | **D8**   | **`description` trên Material**                  | Ghi chú kỹ thuật: quy cách, thông số, hãng sản xuất. Phân biệt với `note` (ghi chú nghiệp vụ) sẽ có ở các entity inventory.                                                                                                              |
 | **D9**   | **UnitConversion KHÔNG tạo ra Unit mới**         | `1 BAO = 50 KG (XM Hà Tiên)` là quy đổi, không phải tạo Unit mới tên "bao xi măng". Tạo Unit riêng cho từng combo sẽ làm bảng Unit phình to. `UnitConversion` giữ bảng Unit gọn (5–10 dòng), mọi biến thể quy đổi nằm ở bảng conversion. |
+| **D10**  | **Material nhận `conversions` nested write**     | Form Material tạo/sửa luôn `UnitConversion` riêng atomic (1 request). `from_unit` luôn = `material.unit`; `to_unit` = `toUnitId` client gửi. Không đổi model `UnitConversion` — chỉ thêm tầng serializer/view.                           |
 
 ## 6. Backlog (tương lai)
 

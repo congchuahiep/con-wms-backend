@@ -1,15 +1,29 @@
 # Change Log — Material + Category + Unit
 
+## v1.4 — 2026-08-13
+
+**Material ↔ UnitConversion (nested write): tạo/sửa quy đổi ngay trong request Material.**
+
+| #   | Thay đổi                                                                                                 | Lý do                                                                              |
+| --- | -------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| 1   | `MaterialSerializer` nhận `conversions` (nested, `write_only`, optional)                                 | Form Material tạo/sửa luôn `UnitConversion` atomic, không cần vào trang Unit riêng |
+| 2   | Thêm `MaterialConversionInputSerializer`, `MaterialConversionReadSerializer`, `MaterialDetailSerializer` | Tách input/output rõ ràng; detail kèm quy đổi read-only                            |
+| 3   | `MaterialViewSet.get_serializer_class()` trả `MaterialDetailSerializer` cho `retrieve`                   | `GET` detail kèm `conversions`                                                     |
+| 4   | Validate: unit `global` không nhận `conversions`; `to_unit != unit`; chống trùng `to_unit`               | Nhất quán `api.md` §5 + tránh dữ liệu rác                                          |
+| 5   | `create`/`update` bọc `transaction.atomic()`; update có `conversions` → replace toàn bộ                  | Atomicity + ngữ nghĩa "form gửi đủ danh sách"                                      |
+
+**Context7 validate:** DRF writable nested serializers (pop nested data + create child) ✅; Django `transaction.atomic()` ✅.
+
 ## v1.3 — 2026-08-12
 
 **Xóa cứng (hard delete) toàn bộ + bỏ trường `is_active`.**
 
-| #   | Thay đổi                                                          | Lý do                                                                     |
-| --- | ----------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| #   | Thay đổi                                                                       | Lý do                                                                    |
+| --- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
 | 1   | Xoá `is_active` khỏi 4 model: MaterialCategory, Unit, Material, UnitConversion | Soft delete gây phiền phức, không cần audit trail cho catalog            |
-| 2   | `DELETE` tất cả endpoint → hard delete + trả về `200 OK` + serializer data | Client nhận object vừa xóa để cập nhật local state, thay vì 204 mặc định |
-| 3   | Bỏ `filter(is_active=True)` khỏi tất cả queryset + serializer | Tất cả object tồn tại đều là "active"                                    |
-| 4   | Serialize trước khi delete để tránh lỗi `instance needs PK`      | `children.all()` cần PK còn tồn tại                                       |
+| 2   | `DELETE` tất cả endpoint → hard delete + trả về `200 OK` + serializer data     | Client nhận object vừa xóa để cập nhật local state, thay vì 204 mặc định |
+| 3   | Bỏ `filter(is_active=True)` khỏi tất cả queryset + serializer                  | Tất cả object tồn tại đều là "active"                                    |
+| 4   | Serialize trước khi delete để tránh lỗi `instance needs PK`                    | `children.all()` cần PK còn tồn tại                                      |
 
 ## v1.2 — 2026-08-07
 

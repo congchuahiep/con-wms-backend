@@ -59,7 +59,7 @@
 }
 ```
 
-**`POST /api/materials/`**
+**`POST /api/materials/`** (unit loại `material` — có thể gửi kèm `conversions`)
 
 ```json
 // Request — Admin hoặc Thủ kho
@@ -68,13 +68,16 @@
     "name": "Xi măng Hà Tiên PCB40",
     "categoryId": 2,
     "unitId": 1,
-    "description": "PCB40, 50kg/bao"
+    "description": "PCB40, 50kg/bao",
+    "conversions": [{ "toUnitId": 2, "factor": "50" }]
 }
 
 // Response: 201 Created
 ```
 
-**`GET /api/materials/1/`**
+> `conversions` **optional**. Chỉ gửi khi `unit.conversionType == "material"`; `fromUnit` tự động = `unit` của Material; `toUnitId` phải khác `unitId`.
+
+**`GET /api/materials/1/`** → `MaterialDetail` (kèm `conversions` read-only)
 
 ```json
 {
@@ -84,14 +87,35 @@
     "category": { "id": 2, "code": "XM", "name": "Xi măng" },
     "unit": { "id": 1, "code": "BAO", "name": "Bao" },
     "description": "PCB40, 50kg/bao",
+    "conversions": [
+        {
+            "id": 1,
+            "toUnit": { "id": 2, "code": "KG", "name": "Kilogram" },
+            "factor": "50"
+        }
+    ],
     "createdAt": "2026-08-05T00:00:00Z",
     "updatedAt": "2026-08-05T00:00:00Z"
 }
-]
-}
 ```
 
+**`PATCH /api/materials/1/`** — gửi kèm `conversions` → **replace toàn bộ** quy đổi:
+
+```json
+{ "conversions": [{ "toUnitId": 2, "factor": "55" }] }
+```
+
+> Không gửi `conversions` → giữ nguyên quy đổi hiện tại (partial update bình thường).
+
 **`DELETE /api/materials/1/`** → xóa cứng, trả về `200 OK` + object vừa xóa.
+
+### Quy tắc validate (`conversions`)
+
+1. `unit.conversion_type == "global"` → **không được** gửi `conversions` (gửi → `400`, field `conversions`).
+2. `unit.conversion_type == "material"` → `conversions` **optional**; mỗi item bắt buộc `toUnitId` + `factor > 0`.
+3. `fromUnit` luôn = `material.unit` (server tự gán).
+4. `toUnitId` != `unitId` (không quy đổi chính nó).
+5. Không được trùng `toUnitId` trong cùng một mảng `conversions`.
 
 ---
 

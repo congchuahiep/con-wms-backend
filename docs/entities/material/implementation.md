@@ -1,5 +1,40 @@
 # Implementation Checklist — Catalog (Material + Category + Unit)
 
+## Feature: Material ↔ UnitConversion (nested write) — v1.4
+
+### Serializers
+
+- [x] `catalog/serializers.py`:
+    - `MaterialConversionInputSerializer` — `to_unit_id` (`PrimaryKeyRelatedField`, `source="to_unit"`) + `factor` (`DecimalField` 12,4, `min_value=Decimal("0.0001")`)
+    - `MaterialConversionReadSerializer` — `to_unit` (`SimpleUnitSerializer`) + `factor`
+    - `MaterialDetailSerializer(MaterialSerializer)` — override `conversions` read-only (`source="unit_conversions"`)
+    - `MaterialSerializer` — thêm `conversions` (nested, `write_only`, optional); implement `validate()`, `create()`, `update()` (pop nested, `transaction.atomic`, update → replace toàn bộ)
+
+### Views
+
+- [x] `catalog/views.py`:
+    - `MaterialViewSet.get_serializer_class()` → `MaterialDetailSerializer` cho `retrieve`
+    - Cập nhật `extend_schema` cho `create`/`update`/`partial_update`/`retrieve`
+
+### Tests
+
+- [x] `catalog/tests.py` — thêm tests cho Material nested conversions:
+    - create unit `material` + `conversions` → 201 + tạo `UnitConversion` đúng `from_unit`
+    - create unit `global` + `conversions` → 400 (`fields.conversions`)
+    - create unit `material` không `conversions` → 201 (optional)
+    - create với `to_unit == unit` → 400
+    - create với trùng `to_unit` → 400
+    - retrieve detail → có `conversions` read-only
+    - PATCH có `conversions` → replace toàn bộ
+    - PATCH không `conversions` → giữ nguyên
+- [x] Chạy `python manage.py test catalog` → 49 tests (8 mới OK; 3 test cũ fail sẵn, ngoài phạm vi)
+
+### Tài liệu
+
+- [x] Cập nhật `api.md` (Material §1: POST/PATCH/GET detail + quy tắc validate)
+- [x] Cập nhật `model.md` (D10)
+- [x] Cập nhật `change-log.md` (v1.4)
+
 ## Cấu hình
 
 - [x] Tạo Django app: `python manage.py startapp catalog`

@@ -217,6 +217,12 @@ class MaterialAPITests(TestCase):
 
         self.category = MaterialCategory.objects.create(code="XM", name="Xi măng")
         self.unit = Unit.objects.create(code="BAO", name="Bao")
+        self.unit_material = Unit.objects.create(
+            code="BAO-M", name="Bao (theo vật tư)", conversion_type="material"
+        )
+        self.unit_kg = Unit.objects.create(
+            code="KG", name="Kilogram", conversion_type="global"
+        )
 
         self.material = Material.objects.create(
             code="XM-HT-PCB40",
@@ -328,6 +334,150 @@ class MaterialAPITests(TestCase):
         )
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
         self.assertEqual(resp.data["name"], "Xi măng Hà Tiên PCB40 (updated)")
+
+    # ─── Nested write: conversions ─────────────────────────────
+
+    def _material_payload(self, **overrides):
+        payload = {
+            "code": "XM-BS-PCB30",
+            "name": "Xi măng Bỉm Sơn PCB30",
+            "categoryId": self.category.pk,
+            "unitId": self.unit_material.pk,
+        }
+        payload.update(overrides)
+        return payload
+
+    def test_create_material_with_conversions(self):
+        self.client.force_authenticate(self.admin)
+        resp = self.client.post(
+            self.list_url,
+            self._material_payload(
+                conversions=[{"toUnitId": self.unit_kg.pk, "factor": "50"}],
+            ),
+            format="json",
+        )
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
+        material = Material.objects.get(code="XM-BS-PCB30")
+        convs = material.unit_conversions.all()
+        self.assertEqual(convs.count(), 1)
+        conv = convs.first()
+        self.assertEqual(conv.from_unit, self.unit_material)
+        self.assertEqual(conv.to_unit, self.unit_kg)
+        self.assertEqual(conv.factor, 50)
+
+    def test_create_material_with_conversions_global_unit(self):
+        self.client.force_authenticate(self.admin)
+        resp = self.client.post(
+            self.list_url,
+            self._material_payload(
+                unitId=self.unit_kg.pk,
+                conversions=[{"toUnitId": self.unit_material.pk, "factor": "50"}],
+            ),
+            format="json",
+        )
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("conversions", resp.data["fields"])
+
+    def test_create_material_material_unit_without_conversions(self):
+        self.client.force_authenticate(self.admin)
+        resp = self.client.post(self.list_url, self._material_payload(), format="json")
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
+        material = Material.objects.get(code="XM-BS-PCB30")
+        self.assertEqual(material.unit_conversions.count(), 0)
+
+    def test_create_material_conversion_to_same_unit(self):
+        self.client.force_authenticate(self.admin)
+        resp = self.client.post(
+            self.list_url,
+            self._material_payload(
+                conversions=[{"toUnitId": self.unit_material.pk, "factor": "1"}],
+            ),
+            format="json",
+        )
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("conversions", resp.data["fields"])
+
+    def test_create_material_duplicate_to_unit(self):
+        self.client.force_authenticate(self.admin)
+        resp = self.client.post(
+            self.list_url,
+            self._material_payload(
+                conversions=[
+                    {"toUnitId": self.unit_kg.pk, "factor": "50"},
+                    {"toUnitId": self.unit_kg.pk, "factor": "60"},
+                ],
+            ),
+            format="json",
+        )
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("conversions", resp.data["fields"])
+
+    def test_retrieve_material_with_conversions(self):
+        mat = Material.objects.create(
+            code="XM-HT-PCB40-C",
+            name="Xi măng Hà Tiên PCB40 (conv)",
+            category=self.category,
+            unit=self.unit_material,
+        )
+        UnitConversion.objects.create(
+            from_unit=self.unit_material,
+            to_unit=self.unit_kg,
+            factor=50,
+            material=mat,
+        )
+        self.client.force_authenticate(self.admin)
+        resp = self.client.get(reverse("material-detail", kwargs={"pk": mat.pk}))
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(resp.data["conversions"]), 1)
+        self.assertEqual(resp.data["conversions"][0]["to_unit"]["code"], "KG")
+        self.assertEqual(resp.data["conversions"][0]["factor"], "50")
+
+    def test_patch_material_replaces_conversions(self):
+        mat = Material.objects.create(
+            code="XM-HT-PCB40-C",
+            name="Xi măng Hà Tiên PCB40 (conv)",
+            category=self.category,
+            unit=self.unit_material,
+        )
+        UnitConversion.objects.create(
+            from_unit=self.unit_material,
+            to_unit=self.unit_kg,
+            factor=50,
+            material=mat,
+        )
+        self.client.force_authenticate(self.admin)
+        url = reverse("material-detail", kwargs={"pk": mat.pk})
+        resp = self.client.patch(
+            url,
+            {"conversions": [{"toUnitId": self.unit_kg.pk, "factor": "55"}]},
+            format="json",
+        )
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        convs = mat.unit_conversions.all()
+        self.assertEqual(convs.count(), 1)
+        self.assertEqual(convs.first().factor, 55)
+
+    def test_patch_material_without_conversions_keeps_existing(self):
+        mat = Material.objects.create(
+            code="XM-HT-PCB40-C",
+            name="Xi măng Hà Tiên PCB40 (conv)",
+            category=self.category,
+            unit=self.unit_material,
+        )
+        conv = UnitConversion.objects.create(
+            from_unit=self.unit_material,
+            to_unit=self.unit_kg,
+            factor=50,
+            material=mat,
+        )
+        self.client.force_authenticate(self.admin)
+        url = reverse("material-detail", kwargs={"pk": mat.pk})
+        resp = self.client.patch(url, {"description": "updated"}, format="json")
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        mat.refresh_from_db()
+        self.assertEqual(mat.description, "updated")
+        self.assertEqual(mat.unit_conversions.count(), 1)
+        self.assertEqual(mat.unit_conversions.first().pk, conv.pk)
 
     # ─── DELETE hard delete ─────────────────────────────────────
 

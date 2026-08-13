@@ -29,6 +29,7 @@ dependencies = [
     { name = "django-cors-headers" },
     { name = "django-filter" },
     { name = "djangorestframework" },
+    { name = "djangorestframework-camel-case" },
     { name = "djangorestframework-simplejwt" },
     { name = "drf-spectacular" },
     { name = "python-dotenv" },
@@ -50,6 +51,7 @@ requires-dist = [
     { name = "django-cors-headers", specifier = ">=4.9.0" },
     { name = "django-filter", specifier = ">=26.1" },
     { name = "djangorestframework", specifier = ">=3.17.1" },
+    { name = "djangorestframework-camel-case", specifier = ">=1.4.2" },
     { name = "djangorestframework-simplejwt", specifier = ">=5.5.1" },
     { name = "drf-spectacular", specifier = ">=0.30.0" },
     { name = "python-dotenv", specifier = ">=1.2.2" },
@@ -155,6 +157,12 @@ sdist = { url = "https://files.pythonhosted.org/packages/ca/d7/c016e69fac19ff8af
 wheels = [
     { url = "https://files.pythonhosted.org/packages/5a/e1/2c516bdc83652b1a60c6119366ac2c0607b479ed05cd6093f916ca8928f8/djangorestframework-3.17.1-py3-none-any.whl", hash = "sha256:c3c74dd3e83a5a3efc37b3c18d92bd6f86a6791c7b7d4dff62bb068500e76457", size = 898844, upload-time = "2026-03-24T16:58:31.845Z" },
 ]
+
+[[package]]
+name = "djangorestframework-camel-case"
+version = "1.4.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/f4/87/647ce93053cb5e35e07bded676340774fe43190388b885c54aff47d8557b/djangorestframework-camel-case-1.4.2.tar.gz", hash = "sha256:cdae75846648abb6585c7470639a1d2fb064dc45f8e8b62aaa50be7f1a7a61f4", size = 8839, upload-time = "2023-02-13T15:28:11.941Z" }
 
 [[package]]
 name = "djangorestframework-simplejwt"

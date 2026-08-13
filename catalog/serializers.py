@@ -1,6 +1,7 @@
 from collections import OrderedDict
 from decimal import Decimal
 
+from django.db import transaction
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
@@ -345,6 +346,20 @@ class DetailedUnitSerializer(serializers.ModelSerializer):
         return result
 
 
+class MaterialConversionInputSerializer(serializers.Serializer):
+    """Input cho nested write: frontend gửi `toUnitId` + `factor`."""
+
+    to_unit_id = serializers.PrimaryKeyRelatedField(
+        queryset=Unit.objects.all(),
+        source="to_unit",
+    )
+    factor = serializers.DecimalField(
+        max_digits=12,
+        decimal_places=4,
+        min_value=Decimal("0.0001"),
+    )
+
+
 class MaterialSerializer(serializers.ModelSerializer):
     category_id = serializers.PrimaryKeyRelatedField(
         queryset=MaterialCategory.objects.all(),
@@ -358,6 +373,11 @@ class MaterialSerializer(serializers.ModelSerializer):
     )
     category = SimpleCategorySerializer(read_only=True)
     unit = SimpleUnitSerializer(read_only=True)
+    conversions = MaterialConversionInputSerializer(
+        many=True,
+        write_only=True,
+        required=False,
+    )
 
     class Meta:
         model = Material
@@ -370,7 +390,91 @@ class MaterialSerializer(serializers.ModelSerializer):
             "unit_id",
             "unit",
             "description",
+            "conversions",
             "created_at",
             "updated_at",
         ]
         read_only_fields = ["id", "created_at", "updated_at"]
+
+    def validate(self, attrs):
+        conversions = attrs.get("conversions")
+
+        if conversions is not None:
+            unit = attrs.get("unit")
+            if unit is None and self.instance is not None:
+                unit = self.instance.unit
+
+            if unit is None:
+                raise serializers.ValidationError(
+                    {"unit_id": "Vui lòng chọn đơn vị cho vật tư."}
+                )
+
+            if unit.conversion_type != "material":
+                raise serializers.ValidationError(
+                    {"conversions": "Chỉ đơn vị theo vật tư mới có quy đổi."}
+                )
+
+            seen = set()
+            for item in conversions:
+                to_unit = item["to_unit"]
+                if to_unit == unit:
+                    raise serializers.ValidationError(
+                        {"conversions": "Không thể quy đổi sang chính đơn vị của vật tư."}
+                    )
+                if to_unit.pk in seen:
+                    raise serializers.ValidationError(
+                        {"conversions": "Trùng đơn vị đích trong danh sách quy đổi."}
+                    )
+                seen.add(to_unit.pk)
+
+        return attrs
+
+    @transaction.atomic
+    def create(self, validated_data):
+        conversions = validated_data.pop("conversions", None)
+        material = super().create(validated_data)
+        self._create_conversions(material, conversions)
+        return material
+
+    @transaction.atomic
+    def update(self, instance, validated_data):
+        conversions = validated_data.pop("conversions", None)
+        instance = super().update(instance, validated_data)
+        if conversions is not None:
+            UnitConversion.objects.filter(material=instance).delete()
+            self._create_conversions(instance, conversions)
+        return instance
+
+    def _create_conversions(self, material, conversions):
+        if conversions is None:
+            return
+        for item in conversions:
+            UnitConversion.objects.create(
+                from_unit=material.unit,
+                to_unit=item["to_unit"],
+                factor=item["factor"],
+                material=material,
+            )
+
+
+class MaterialConversionReadSerializer(serializers.ModelSerializer):
+    """Output read-only cho `conversions` trong MaterialDetailSerializer."""
+
+    to_unit = SimpleUnitSerializer(read_only=True)
+
+    class Meta:
+        model = UnitConversion
+        fields = ["id", "to_unit", "factor"]
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data["factor"] = UnitConversionSerializer._format_factor(data["factor"])
+        return data
+
+
+class MaterialDetailSerializer(MaterialSerializer):
+    """Dùng cho GET /api/materials/{id}/ — kèm danh sách quy đổi read-only."""
+
+    conversions = MaterialConversionReadSerializer(
+        many=True, read_only=True, source="unit_conversions"
+    )

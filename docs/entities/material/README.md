@@ -14,11 +14,11 @@ Django app: **`catalog`**
 
 ## Scope
 
-| Entity             | Mô tả                              | Trạng thái                                                  |
-| ------------------ | ---------------------------------- | ----------------------------------------------------------- |
-| `MaterialCategory` | Danh mục vật tư phân cấp (tree)    | ✅ Done                                                     |
-| `Unit`             | Đơn vị tính (bao, kg, m3...)       | 🔀 **Đã tách** → [`docs/entities/unit/`](../unit/README.md) |
-| `UnitConversion`   | Quy đổi đơn vị (1 tấn = 1000 kg)   | 🔀 **Đã tách** → [`docs/entities/unit/`](../unit/README.md) |
-| `Material`         | Vật tư (xi măng, thép, cát...)     | ✅ Done                                                     |
-| `MaterialStock`    | Tồn kho theo kho + ngưỡng cảnh báo | 📋 Backlog (app `inventory`)                                |
-| `ProjectMaterial`  | Định mức vật tư theo dự án         | 📋 Backlog (app `project`)                                  |
+| Entity             | Mô tả                                                 | Trạng thái                                                  |
+| ------------------ | ----------------------------------------------------- | ----------------------------------------------------------- |
+| `MaterialCategory` | Danh mục vật tư phân cấp (tree)                       | ✅ Done                                                     |
+| `Unit`             | Đơn vị tính (bao, kg, m3...)                          | 🔀 **Đã tách** → [`docs/entities/unit/`](../unit/README.md) |
+| `UnitConversion`   | Quy đổi đơn vị (1 tấn = 1000 kg)                      | 🔀 **Đã tách** → [`docs/entities/unit/`](../unit/README.md) |
+| `Material`         | Vật tư (xi măng, thép, cát...) — nested `conversions` | ✅ Done (v1.4)                                              |
+| `MaterialStock`    | Tồn kho theo kho + ngưỡng cảnh báo                    | 📋 Backlog (app `inventory`)                                |
+| `ProjectMaterial`  | Định mức vật tư theo dự án                            | 📋 Backlog (app `project`)                                  |

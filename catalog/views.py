@@ -13,6 +13,7 @@ from .serializers import (
     DetailedUnitSerializer,
     MaterialCategoryFlatSerializer,
     MaterialCategorySerializer,
+    MaterialDetailSerializer,
     MaterialSerializer,
     UnitConversionSerializer,
     UnitSerializer,
@@ -199,17 +200,39 @@ class UnitConversionViewSet(
         summary="Danh sách vật tư", description="Trả về danh sách vật tư có phân trang."
     ),
     create=extend_schema(
-        summary="Tạo vật tư mới", description="Admin hoặc Thủ kho đều có thể tạo."
+        summary="Tạo vật tư mới",
+        description=(
+            "Admin hoặc Thủ kho đều có thể tạo. Nếu `unitId` thuộc loại `material`, "
+            "có thể gửi kèm `conversions` để tạo quy đổi atomic."
+        ),
+        request=MaterialSerializer,
+        responses={201: MaterialSerializer},
     ),
-    retrieve=extend_schema(summary="Chi tiết vật tư"),
-    update=extend_schema(summary="Cập nhật vật tư"),
-    partial_update=extend_schema(summary="Cập nhật một phần vật tư"),
+    retrieve=extend_schema(
+        summary="Chi tiết vật tư (kèm quy đổi)",
+        responses={200: MaterialDetailSerializer},
+    ),
+    update=extend_schema(
+        summary="Cập nhật vật tư",
+        request=MaterialSerializer,
+        responses={200: MaterialSerializer},
+    ),
+    partial_update=extend_schema(
+        summary="Cập nhật một phần vật tư",
+        request=MaterialSerializer,
+        responses={200: MaterialSerializer},
+    ),
     destroy=extend_schema(summary="Xóa vật tư"),
 )
 class MaterialViewSet(viewsets.ModelViewSet):
     serializer_class = MaterialSerializer
     filter_backends = [SearchFilter]
     search_fields = ["code", "name"]
+
+    def get_serializer_class(self):
+        if self.action == "retrieve":
+            return MaterialDetailSerializer
+        return MaterialSerializer
 
     def get_queryset(self):
         qs = Material.objects.select_related("category", "unit")
