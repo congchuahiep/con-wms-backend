@@ -4,7 +4,7 @@
 
 | Method   | Endpoint                | Mô tả                         | Request Body                                                                                            | Response                           |
 | -------- | ----------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------- | ---------------------------------- |
-| `GET`    | `/api/warehouses/`      | Danh sách kho                 | —                                                                                                       | `{"count": N, "results": [{...}]}` |
+| `GET`    | `/api/warehouses/`      | Danh sách kho                 | —                                                                                                       | `[{...}]` (mảng phẳng, không phân trang) |
 | `POST`   | `/api/warehouses/`      | Tạo kho mới                   | `{"code": "KHO_CHINH", "name": "Kho chính", "address": "...", "note": "...", "latitude": 10.7626, "longitude": 106.6602}` | `{...}`                            |
 | `GET`    | `/api/warehouses/{id}/` | Chi tiết 1 kho                | —                                                                                                       | `{...}`                            |
 | `PUT`    | `/api/warehouses/{id}/` | Cập nhật kho                  | `{"name": "...", "note": "...", "latitude": 10.7626, "longitude": 106.6602}`                            | `{...}`                            |
@@ -19,27 +19,22 @@
 - `?is_active=true` — filter kho đang hoạt động (mặc định)
 - `?search=chính` — tìm theo `name` hoặc `code`
 
-**Response:**
+**Response:** mảng phẳng (không phân trang — master data ít bản ghi):
 ```json
-{
-  "count": 2,
-  "next": null,
-  "previous": null,
-  "results": [
-    {
-      "id": 1,
-      "code": "KHO_CHINH",
-      "name": "Kho chính — Bãi sau",
-      "address": "Số 12, đường A, xã B",
-      "note": "Kho chính — nền bê tông, mái tôn, có cửa cuốn",
-      "latitude": 10.762622,
-      "longitude": 106.660172,
-      "is_active": true,
-      "created_at": "2026-01-01T00:00:00+07:00",
-      "updated_at": "2026-08-01T00:00:00+07:00"
-    }
-  ]
-}
+[
+  {
+    "id": 1,
+    "code": "KHO_CHINH",
+    "name": "Kho chính — Bãi sau",
+    "address": "Số 12, đường A, xã B",
+    "note": "Kho chính — nền bê tông, mái tôn, có cửa cuốn",
+    "latitude": 10.762622,
+    "longitude": 106.660172,
+    "isActive": true,
+    "createdAt": "2026-01-01T00:00:00+07:00",
+    "updatedAt": "2026-08-01T00:00:00+07:00"
+  }
+]
 ```
 
 ### `POST /api/warehouses/`
@@ -70,9 +65,9 @@
   "note": "Kho chính — nền bê tông, mái tôn, có cửa cuốn",
   "latitude": 10.762622,
   "longitude": 106.660172,
-  "is_active": true,
-  "created_at": "2026-01-01T00:00:00+07:00",
-  "updated_at": "2026-08-01T00:00:00+07:00"
+  "isActive": true,
+  "createdAt": "2026-01-01T00:00:00+07:00",
+  "updatedAt": "2026-08-01T00:00:00+07:00"
 }
 ```
 
@@ -100,8 +95,9 @@
 
 - **Filter:** `is_active` (boolean), `search` (name, code)
 - **Ordering:** mặc định theo `name` (alphabetical)
-- **Pagination:** `PageNumberPagination`, page_size = 20
+- **Pagination:** không phân trang (`pagination_class = None`) — ít kho, frontend cần full list cho dropdown
 - **Router:** `DefaultRouter` register prefix `warehouses` → URL cuối: `/api/warehouses/`
 - **ViewSet:** `ModelViewSet` — đủ 5 action CRUD, không cần `@action` tùy chỉnh
 - **Serializer:** 1 serializer dùng chung cho list + detail + create + update (`WarehouseSerializer`)
+- **CamelCase:** `djangorestframework-camel-case` tự động convert snake_case ↔ camelCase trong JSON response/request
 - **`note` vs vị trí đặt đồ:** `note` là ghi chú về **bản thân kho** (tình trạng, lưu ý). Vị trí đặt đồ sẽ được lưu ở entity `MaterialStock` (tồn kho theo vật tư) hoặc `Location` (tương lai).

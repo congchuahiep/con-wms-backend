@@ -1,6 +1,6 @@
-# Supplier (Nhà Cung Cấp) — Index
+# Inbound Note (Phiếu Nhập) — Index
 
-Django app: **`supplier`**
+Django app: **`inventory`**
 
 ## Tài liệu
 

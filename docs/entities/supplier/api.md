@@ -4,7 +4,7 @@
 
 | Method   | Endpoint               | Mô tả                         | Request Body                                                                                                    | Response                           |
 | -------- | ---------------------- | ----------------------------- | --------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
-| `GET`    | `/api/suppliers/`      | Danh sách nhà cung cấp        | —                                                                                                               | `{"count": N, "results": [{...}]}` |
+| `GET`    | `/api/suppliers/`      | Danh sách nhà cung cấp        | —                                                                                                               | `[{...}]` (mảng phẳng, không phân trang) |
 | `POST`   | `/api/suppliers/`      | Tạo nhà cung cấp mới          | `{"code": "NCC001", "name": "Công ty ABC", "taxCode": "0123456789", "contactPerson": "Anh Tuấn", ...}`          | `{...}`                            |
 | `GET`    | `/api/suppliers/{id}/` | Chi tiết 1 nhà cung cấp       | —                                                                                                               | `{...}`                            |
 | `PUT`    | `/api/suppliers/{id}/` | Cập nhật nhà cung cấp         | `{"name": "...", "contactPerson": "...", "phone": "...", ...}`                                                  | `{...}`                            |
@@ -19,29 +19,24 @@
 - `?is_active=true` — filter NCC đang hợp tác (mặc định)
 - `?search=ABC` — tìm theo `name` hoặc `code`
 
-**Response:**
+**Response:** mảng phẳng (không phân trang — master data ít bản ghi):
 ```json
-{
-  "count": 1,
-  "next": null,
-  "previous": null,
-  "results": [
-    {
-      "id": 1,
-      "code": "NCC001",
-      "name": "Công ty TNHH Vật Liệu Xây Dựng ABC",
-      "taxCode": "0123456789",
-      "contactPerson": "Anh Tuấn — quản lý bán hàng",
-      "phone": "0903123456",
-      "email": "sales@abc-vlxd.com",
-      "address": "Số 45, đường Nguyễn Huệ, TP. HCM",
-      "note": "Giao hàng thứ 3-5-7, giá tốt nhưng hay giao trễ",
-      "isActive": true,
-      "createdAt": "2026-08-01T00:00:00+07:00",
-      "updatedAt": "2026-08-01T00:00:00+07:00"
-    }
-  ]
-}
+[
+  {
+    "id": 1,
+    "code": "NCC001",
+    "name": "Công ty TNHH Vật Liệu Xây Dựng ABC",
+    "taxCode": "0123456789",
+    "contactPerson": "Anh Tuấn — quản lý bán hàng",
+    "phone": "0903123456",
+    "email": "sales@abc-vlxd.com",
+    "address": "Số 45, đường Nguyễn Huệ, TP. HCM",
+    "note": "Giao hàng thứ 3-5-7, giá tốt nhưng hay giao trễ",
+    "isActive": true,
+    "createdAt": "2026-08-01T00:00:00+07:00",
+    "updatedAt": "2026-08-01T00:00:00+07:00"
+  }
+]
 ```
 
 ### `POST /api/suppliers/`
@@ -107,7 +102,7 @@
 
 - **Filter:** `is_active` (boolean), `search` (name, code)
 - **Ordering:** mặc định theo `code` (alphabetical)
-- **Pagination:** `PageNumberPagination`, page_size = 20
+- **Pagination:** không phân trang (`pagination_class = None`) — NCC ít, frontend cần full list cho dropdown
 - **Router:** `DefaultRouter` register prefix `suppliers` → URL cuối: `/api/suppliers/`
 - **ViewSet:** `ModelViewSet` — đủ 5 action CRUD, không cần `@action` tùy chỉnh
 - **Serializer:** 1 serializer dùng chung cho list + detail + create + update (`SupplierSerializer`)

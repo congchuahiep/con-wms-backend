@@ -1,5 +1,14 @@
 # Change Log — Warehouse Entity
 
+## v1.5 — 2026-08-13
+
+Cập nhật tham chiếu sau khi entity tồn kho được thiết kế (xem [`stock/`](../stock/), ADR-0001):
+
+| # | Thay đổi | Lý do |
+|---|---|---|
+| 1 | Quan hệ `Warehouse → MaterialStock` đổi thành `Warehouse → StockMovement` | Không còn bảng `MaterialStock` — tồn kho = SUM các dòng sổ kho (ADR-0001) |
+| 2 | D2: bỏ nhắc `MaterialStock` khi nói về vị trí đặt đồ | Vị trí trong kho đã bị loại (D1), chỉ còn phương án `Location` tương lai |
+
 ## v1.4 — 2026-08-01
 
 Triển khai code hoàn chỉnh:

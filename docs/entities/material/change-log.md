@@ -1,5 +1,14 @@
 # Change Log — Material + Category + Unit
 
+## v1.5 — 2026-08-13
+
+Cập nhật tham chiếu sau khi entity tồn kho được thiết kế (xem [`stock/`](../stock/), ADR-0001):
+
+| #   | Thay đổi                                                                  | Lý do                                                                              |
+| --- | ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| 1   | Bỏ nhắc `MaterialStock` (backlog) → thay bằng sổ kho `StockMovement`      | Tồn kho không còn là bảng lưu — tồn = SUM dòng sổ kho (ADR-0001)                   |
+| 2   | `min_stock_alert` chuyển sang backlog `StockAlert`                        | Ngưỡng cảnh báo là cấu hình riêng, không phải bảng tồn                              |
+
 ## v1.4 — 2026-08-13
 
 **Material ↔ UnitConversion (nested write): tạo/sửa quy đổi ngay trong request Material.**
@@ -65,6 +74,6 @@ Khởi tạo thiết kế: 4 models trong app `catalog`.
 
 | Entity            | App         | Ghi chú                                                                                           |
 | ----------------- | ----------- | ------------------------------------------------------------------------------------------------- |
-| `MaterialStock`   | `inventory` | Tồn kho theo kho + ngưỡng cảnh báo (`warehouse FK`, `material FK`, `quantity`, `min_stock_alert`) |
+| `StockAlert`      | `inventory` | Ngưỡng cảnh báo tồn thấp theo kho (`warehouse FK`, `material FK`, `min_stock_alert`) — tồn thì xem [`stock/`](../stock/) |
 | `Project`         | `project`   | Dự án xây dựng                                                                                    |
 | `ProjectMaterial` | `project`   | Định mức vật tư theo dự án                                                                        |

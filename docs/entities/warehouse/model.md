@@ -53,7 +53,7 @@ def __str__(self):
 | `InboundNote`   | 1 → N       | Phiếu nhập vào kho này                                          | Entity tương lai (`inventory` app)                        |
 | `OutboundNote`  | 1 → N       | Phiếu xuất từ kho này                                           | Entity tương lai (`inventory` app)                        |
 | `StocktakeNote` | 1 → N       | Phiếu kiểm kê cho kho này                                       | Entity tương lai (`stocktake` app)                        |
-| `MaterialStock` | 1 → N       | Tồn kho theo vật tư                                             | Entity tương lai (`inventory` app)                        |
+| `StockMovement`  | 1 → N       | Dòng sổ kho của kho này — tồn = SUM dòng sổ kho | Entity mới (`inventory` app, [`stock/`](../stock/)) |
 | `Location`      | 1 → N       | **(Future)** Vị trí trong kho — nếu sau này cần quản lý kệ/ngăn | Sẽ thêm model `Location` với `parent` FK self-referential |
 
 ## 4. Quyết định thiết kế
@@ -61,7 +61,7 @@ def __str__(self):
 | #      | Quyết định                                                    | Lý do                                                                                                                                                                                                           |
 | ------ | ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **D1** | **Chỉ có Warehouse, không có Location**                       | YAGNI. Thực tế kho là bãi chứa, không có kệ/khu vực cố định. Thêm Location lúc này là code thừa, gây khó cho thủ kho (phải chọn vị trí khi nhập dù thực tế không có).                                           |
-| **D2** | **`note` field cho ghi chú chung về kho**                     | Ghi chú tự do về bản thân kho: tình trạng, lưu ý quản lý, thông tin thuê/mượn. **Không** dùng để ghi vị trí đặt đồ — việc đó thuộc về entity `MaterialStock` (tồn kho theo vật tư) hoặc `Location` (tương lai). |
+| **D2** | **`note` field cho ghi chú chung về kho**                     | Ghi chú tự do về bản thân kho: tình trạng, lưu ý quản lý, thông tin thuê/mượn. **Không** dùng để ghi vị trí đặt đồ — vị trí trong kho đã bị loại bỏ (D1), và sẽ thuộc về entity `Location` nếu sau này cần. |
 | **D3** | **`code` unique toàn cục** (không phải unique theo warehouse) | Chỉ có 1–3 kho, unique toàn cục đủ dùng và tránh nhầm lẫn khi chọn kho trong dropdown.                                                                                                                          |
 | **D4** | **Soft delete qua `is_active`**                               | Không xóa cứng kho đã có phiếu nhập/xuất. Tương tự pattern của `User.is_active`.                                                                                                                                |
 | **D5** | **Timestamps `created_at` + `updated_at`**                    | Chuẩn cho mọi entity trong hệ thống, hỗ trợ audit trail cơ bản.                                                                                                                                                 |

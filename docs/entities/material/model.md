@@ -11,7 +11,7 @@ Sếp yêu cầu hệ thống phải quy đổi được đơn vị (vd: nhập 
 
 Danh mục vật tư dạng phân cấp (tree) qua self-referential FK, đủ dùng cho quy mô 20–30 danh mục, không cần thêm dependency như django-mptt.
 
-> **Nguyên tắc:** Entity `Material` chỉ trả lời câu hỏi **"vật tư này là gì?"** — không trả lời **"còn bao nhiêu?"** (→ `MaterialStock` backlog) hay **"dự án cần bao nhiêu?"** (→ `ProjectMaterial` backlog).
+> **Nguyên tắc:** Entity `Material` chỉ trả lời câu hỏi **"vật tư này là gì?"** — không trả lời **"còn bao nhiêu?"** (→ sổ kho `StockMovement`, [`stock/`](../stock/)) hay **"dự án cần bao nhiêu?"** (→ `ProjectMaterial` backlog).
 
 ## 2. Models
 
@@ -49,7 +49,7 @@ Không có enum riêng. Các đơn vị tính được lưu dưới dạng model
 | **D3**   | **UnitConversion.material nullable**             | NULL = quy đổi toàn cục (1 tấn = 1000 kg). Có set = quy đổi riêng cho vật tư đó (1 bao XM Hà Tiên = 50 kg).                                                                                                                              |
 | **D4**   | **FK dùng on_delete=PROTECT**                    | Không cho xóa Category/Unit đang được Material/Conversion tham chiếu → bảo vệ toàn vẹn dữ liệu.                                                                                                                                          |
 | **D5**   | **UnitConversion dùng CASCADE khi xóa Material** | Nếu xóa vật tư, xóa luôn quy đổi riêng của nó (quy đổi toàn cục vẫn giữ).                                                                                                                                                                |
-| **D6**   | **Không có `min_stock_alert` trên Material**     | Ngưỡng cảnh báo phụ thuộc vào kho → thuộc về `MaterialStock` (backlog).                                                                                                                                                                  |
+| **D6**   | **Không có `min_stock_alert` trên Material**     | Ngưỡng cảnh báo phụ thuộc vào kho → thuộc về entity cảnh báo tồn tương lai (backlog `StockAlert`, [`stock/`](../stock/)). |
 | **D7**   | **Timestamps `created_at` + `updated_at`**       | Chuẩn cho mọi entity, hỗ trợ audit trail.                                                                                                                                                                                                |
 | **D8**   | **`description` trên Material**                  | Ghi chú kỹ thuật: quy cách, thông số, hãng sản xuất. Phân biệt với `note` (ghi chú nghiệp vụ) sẽ có ở các entity inventory.                                                                                                              |
 | **D9**   | **UnitConversion KHÔNG tạo ra Unit mới**         | `1 BAO = 50 KG (XM Hà Tiên)` là quy đổi, không phải tạo Unit mới tên "bao xi măng". Tạo Unit riêng cho từng combo sẽ làm bảng Unit phình to. `UnitConversion` giữ bảng Unit gọn (5–10 dòng), mọi biến thể quy đổi nằm ở bảng conversion. |
@@ -59,6 +59,6 @@ Không có enum riêng. Các đơn vị tính được lưu dưới dạng model
 
 | Entity            | App         | Mô tả                                                                                  |
 | ----------------- | ----------- | -------------------------------------------------------------------------------------- |
-| `MaterialStock`   | `inventory` | Tồn kho theo kho (`warehouse FK` + `material FK` + `quantity` + `min_stock_alert`)     |
+| `StockAlert`      | `inventory` | Ngưỡng cảnh báo tồn thấp theo kho (`warehouse FK` + `material FK` + `min_stock_alert`) — tồn thì đã có [`stock/`](../stock/) |
 | `Project`         | `project`   | Dự án xây dựng (`code`, `name`, `warehouse FK`)                                        |
 | `ProjectMaterial` | `project`   | Định mức vật tư theo dự án (`project FK` + `material FK` + `planned_qty` + `used_qty`) |
