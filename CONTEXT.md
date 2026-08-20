@@ -12,6 +12,10 @@ _Avoid_: đơn hàng, hóa đơn, receipt
 Phiếu ghi nhận hàng vào kho; hai loại: nhập mua (có nhà cung cấp, có đơn giá) và nhập hàng công trường trả lại (không nhà cung cấp, không đơn giá).
 _Avoid_: đơn nhập hàng, order, nhập hoàn trả (gây nhầm: đọc như trả hàng cho NCC)
 
+**Công trường (Site)**:
+Địa điểm thi công nhận vật tư (entity `Site`, app `sites`). Phiếu xuất cấp (`OutboundNote.issue_for_use`) bắt buộc chọn công trường; báo cáo theo công trường lọc qua `site`.
+_Avoid_: project, dự án
+
 **Nháp (Draft)**:
 Trạng thái phiếu đang soạn; chưa ảnh hưởng tồn kho, xóa được.
 _Avoid_: tạm, pending

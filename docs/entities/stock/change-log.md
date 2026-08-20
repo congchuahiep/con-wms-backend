@@ -1,5 +1,16 @@
 # Change Log — Stock (Sổ kho & Tồn kho)
 
+## v1.5 — 2026-08-18 (Design — chưa code)
+
+Thiết kế OutboundNote + StocktakeNote ([`../outbound-note/`](../outbound-note/README.md), [`../stocktake/`](../stocktake/README.md)) — kéo theo sổ kho:
+
+- `StockMovement` bổ sung `outbound_note` + `stocktake_note` FK (nullable) — đủ 3 nguồn; `inbound_note` NOT NULL → NULL (AlterField)
+- CheckConstraint `ck_sm_exactly_one_source` — đúng 1 trong 3 FK (code trong §2.1)
+- CheckConstraint `ck_sm_price_only_purchase` — `unit_price` ⇔ `inbound_purchase_from_supplier` (bổ sung constraint đã ghi ở v1.1 nhưng chưa từng có trong code)
+- Index `ix_sm_outbound_note` + `ix_sm_stocktake_note`
+- `StockMovementSerializer` thêm `outboundNote` / `stocktakeNote` (nullable)
+- Validate Context7: `CheckConstraint` + `Q(...)` (3 FK nullable), `AlterField` FK nullable — ✅
+
 ## v1.4 — 2026-08-18
 
 Enum gom vào trong model + đồng bộ docs (user chỉnh code cho gọn):

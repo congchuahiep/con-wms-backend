@@ -45,6 +45,7 @@
     "date": "2026-08-13",
     "warehouse": { "id": 1, "code": "KHO_CHINH", "name": "Kho chính — Bãi sau" },
     "supplier": { "id": 1, "code": "NCC001", "name": "Công ty TNHH Vật Liệu Xây Dựng ABC" },
+    "site": null,
     "createdBy": { "id": 2, "email": "thukho@test.com" },
     "totalAmount": "10725000",
     "totalQuantity": 2,
@@ -76,6 +77,7 @@
 - `?status=draft|posted|voided` — lọc theo trạng thái
 - `?warehouse=1` — lọc theo kho
 - `?supplier=1` — lọc theo NCC
+- `?site=1` — lọc theo công trường trả hàng (chỉ có trên phiếu `return_from_site`)
 - `?date_from=2026-08-01&date_to=2026-08-31` — lọc theo khoảng ngày
 - `?search=PN-2026` — tìm theo số phiếu
 
@@ -94,6 +96,7 @@
       "date": "2026-08-13",
       "warehouse": { "id": 1, "code": "KHO_CHINH", "name": "Kho chính — Bãi sau" },
       "supplier": { "id": 1, "code": "NCC001", "name": "Công ty TNHH Vật Liệu Xây Dựng ABC" },
+      "site": null,
       "createdBy": { "id": 2, "email": "thukho@test.com" },
       "totalAmount": "10725000.00",
       "totalQuantity": 2,
@@ -126,6 +129,8 @@ Chỉ áp dụng khi `status=draft` — xóa cứng phiếu + dòng (chưa có d
 | ------------------ | ------------------------------------------- | ---- |
 | Supplier required  | `note_type=purchase` mà thiếu `supplier`    | 400  |
 | Supplier forbidden | `note_type=return_from_site` mà có `supplier` | 400  |
+| Site required      | `note_type=return_from_site` mà thiếu `site`  | 400  |
+| Site forbidden     | `note_type=purchase` mà có `site`             | 400  |
 | Lines required     | Phiếu phải có ít nhất 1 dòng                | 400  |
 | Quantity > 0       | Mỗi dòng `quantity` phải > 0                | 400  |
 | Unit price >= 0    | Mỗi dòng `unitPrice` phải >= 0              | 400  |
@@ -141,6 +146,7 @@ Chỉ áp dụng khi `status=draft` — xóa cứng phiếu + dòng (chưa có d
 - **`createdBy` / `voidedBy`:** tự set từ `request.user`, read-only — thủ kho không thể giả mạo
 - **`totalAmount`:** tính động = Σ(quantity × unit_price), không lưu DB
 - **`totalQuantity`:** **số dòng vật tư** của phiếu (integer), không phải tổng số lượng — tổng số lượng lấy từ từng dòng `lines[].quantity`
+- **`site`:** công trường trả hàng — chọn từ `/api/sites/`; bắt buộc khi `noteType=return_from_site`, null khi `purchase` (báo cáo công trường đủ 2 chiều: xuất cấp + trả về)
 - **Nested write:** `transaction.atomic` — hoặc tạo cả phiếu + dòng, hoặc fail toàn bộ
 - **Update lines:** strategy replace-all (xóa dòng cũ, tạo lại) — chỉ khi draft
 - **Chốt/hủy ghi sổ kho:** logic vòng đời đặt ở `BaseNote.post()` / `BaseNote.void()` trong `inventory/models.py` (xem [`stock/implementation.md`](../stock/implementation.md)), cùng `transaction.atomic` với việc đổi `status`

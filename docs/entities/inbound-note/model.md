@@ -1,7 +1,7 @@
 # Model — Inbound Note (Phiếu Nhập)
 
 > Django app: `inventory`
-> Kế thừa: `models.Model`
+> Kế thừa: `BaseNote` (abstract — khung chung + vòng đời, xem [`../stock/model.md`](../stock/model.md))
 > Gồm 2 model: `InboundNote` (phiếu) + `InboundNoteLine` (dòng vật tư)
 
 ## 1. Bối cảnh thực tế
@@ -9,7 +9,7 @@
 Thủ kho (1–2 người, ít tin học) nhập vật tư bằng barcode USB HID (quét mã SKU → tự thêm dòng). Phiếu nhập có 2 loại theo PROJECT_CHARTER F1:
 
 - **Nhập mua** (từ NCC) — có `supplier`, mỗi dòng có đơn giá `unit_price`
-- **Nhập hàng công trường trả lại** — không có supplier
+- **Nhập hàng công trường trả lại** — không có supplier, **bắt buộc chọn công trường** (`site` FK)
 
 Vòng đời phiếu (chốt với user 2026-08-13):
 
@@ -30,13 +30,14 @@ Yêu cầu F5: "giá trị tồn (giá nhập gần nhất)" — giá lưu theo 
 | 5   | `date`       | DateField             | default=timezone.now | Ngày nghiệp vụ                             |
 | 6   | `warehouse`  | FK → `Warehouse`      | PROTECT, required    | Kho nhận hàng                              |
 | 7   | `supplier`   | FK → `Supplier`       | PROTECT, null/blank  | Bắt buộc khi `purchase`, null khi `return_from_site` |
-| 8   | `created_by` | FK → `iam.User`       | PROTECT, required    | Người lập phiếu (tự set từ request.user)   |
-| 9   | `voided_by`  | FK → `iam.User`       | PROTECT, null/blank  | Ai hủy phiếu                               |
-| 10  | `voided_at`  | DateTimeField         | null/blank           | Khi nào hủy                                |
-| 11  | `void_reason`| TextField             | blank                | Lý do hủy — **bắt buộc khi void**          |
-| 12  | `note`       | TextField             | blank                | Ghi chú phiếu                              |
-| 13  | `created_at` | DateTimeField         | auto_now_add         |                                            |
-| 14  | `updated_at` | DateTimeField         | auto_now             |                                            |
+| 8   | `site`       | FK → `Site`           | PROTECT, null/blank  | Công trường trả hàng — bắt buộc khi `return_from_site`, null khi `purchase` (D13) |
+| 9   | `created_by` | FK → `iam.User`       | PROTECT, required    | Người lập phiếu (tự set từ request.user)   |
+| 10  | `voided_by`  | FK → `iam.User`       | PROTECT, null/blank  | Ai hủy phiếu                               |
+| 11  | `voided_at`  | DateTimeField         | null/blank           | Khi nào hủy                                |
+| 12  | `void_reason`| TextField             | blank                | Lý do hủy — **bắt buộc khi void**          |
+| 13  | `note`       | TextField             | blank                | Ghi chú phiếu                              |
+| 14  | `created_at` | DateTimeField         | auto_now_add         |                                            |
+| 15  | `updated_at` | DateTimeField         | auto_now             |                                            |
 
 ## 3. Model `InboundNoteLine` (dòng vật tư)
 
@@ -74,6 +75,7 @@ class InboundNote(BaseNote):
 | ---------------------------------- | ----------- | -------------------------------- | --------------------------------- |
 | `InboundNote` → `Warehouse`        | N → 1       | Phiếu thuộc 1 kho                | `warehouse` FK                    |
 | `InboundNote` → `Supplier`         | N → 1       | Nhập mua từ NCC                  | `supplier` FK (null khi nhập hàng công trường trả lại) |
+| `InboundNote` → `Site`            | N → 1       | Công trường trả hàng             | `site` FK (bắt buộc khi `return_from_site`, null khi `purchase`) |
 | `InboundNote` → `iam.User`         | N → 1       | Người lập phiếu                  | `created_by` FK                   |
 | `InboundNoteLine` → `InboundNote`  | N → 1       | Dòng thuộc phiếu                 | `inbound_note` FK, CASCADE        |
 | `InboundNoteLine` → `Material`     | N → 1       | Dòng là 1 vật tư                 | `material` FK, PROTECT            |
@@ -96,3 +98,4 @@ class InboundNote(BaseNote):
 | **D10** | **Chốt phiếu = ghi sổ kho (`StockMovement`) trong cùng transaction**   | `POST /{id}/post/`: mỗi dòng sinh 1 dòng sổ kho (+quantity, unit_price nếu purchase, date = date phiếu) + set `status=posted`. Atomic: hoặc ghi hết, hoặc không gì cả.                   |
 | **D11** | **Phiếu đã chốt bất biến — không PUT/DELETE**                          | Sửa sai sau khi chốt = hủy phiếu + lập phiếu mới. Giữ lịch sử sạch, tránh lệch sổ kho (user chốt 2026-08-13).                                                                            |
 | **D12** | **Hủy phiếu bắt buộc lý do + lưu ai hủy, khi nào**                     | `void_reason` required, set `voided_by`/`voided_at` tự động — đáp ứng NFR "log thao tác quan trọng (xóa phiếu, điều chỉnh tồn)".                                                        |
+| **D13** | **`site` FK bắt buộc khi `return_from_site`, null khi `purchase`** | Báo cáo công trường cần **đủ 2 chiều**: xuất cấp cho công trường nào (`OutboundNote.site`) và công trường nào trả hàng về (`InboundNote.site`). User chốt 2026-08-18 — entity `Site` (xem [`../site/`](../site/README.md)). |

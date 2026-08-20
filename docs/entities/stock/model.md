@@ -27,9 +27,9 @@ Câu trả lời thiết kế (đã chốt với user, 2026-08-13):
 | 5   | `unit_price`     | DecimalField(14, 2)        | null/blank          | Chỉ có khi `movement_type=inbound_purchase_from_supplier` — nuôi "giá nhập gần nhất" (F5) |
 | 6   | `movement_type`  | CharField(40) choices      | required            | 6 loại — xem §3                                                             |
 | 7   | `date`           | DateField                  | required            | **Ngày nghiệp vụ** — copy từ phiếu, dùng cho báo cáo kỳ (xem D6)            |
-| 8   | `inbound_note`   | FK → `InboundNote`         | PROTECT, null/blank | Phase 1 — xem D7                                                            |
-| 9   | `outbound_note`  | FK → `OutboundNote`        | PROTECT, null/blank | Future (entity chưa thiết kế)                                               |
-| 10  | `stocktake_note` | FK → `StocktakeNote`       | PROTECT, null/blank | Future (entity chưa thiết kế)                                               |
+| 8   | `inbound_note`   | FK → `InboundNote`         | PROTECT, null/blank | Nguồn: phiếu nhập — đúng 1 trong 3 FK (xem §2.1)                       |
+| 9   | `outbound_note`  | FK → `OutboundNote`        | PROTECT, null/blank | Nguồn: phiếu xuất — đúng 1 trong 3 FK (xem §2.1)                       |
+| 10  | `stocktake_note` | FK → `StocktakeNote`       | PROTECT, null/blank | Nguồn: phiếu kiểm kê — đúng 1 trong 3 FK (xem §2.1)                    |
 | 11  | `lot`            | CharField(50)              | null/blank          | **Future** — chừa sẵn cho trace theo lô (xem D8)                            |
 | 12  | `reversal_of`    | FK self                    | PROTECT, null/blank | Dòng ngược dấu trỏ về dòng gốc khi hủy phiếu                                |
 | 13  | `reason`         | TextField                  | blank               | Lý do (hủy phiếu, chênh lệch kiểm kê)                                       |
@@ -40,9 +40,30 @@ Câu trả lời thiết kế (đã chốt với user, 2026-08-13):
 
 ### 2.1 Ràng buộc "đúng 1 nguồn phiếu"
 
-Mỗi dòng sổ kho phải có **đúng 1** trong 3 FK nguồn (`inbound_note` / `outbound_note` / `stocktake_note`) — xem D10 về lý do chọn 3 FK nullable thay vì GenericForeignKey hay tách bảng.
+Mỗi dòng sổ kho phải có **đúng 1** trong 3 FK nguồn (`inbound_note` / `outbound_note` / `stocktake_note`) — xem D10 về lý do chọn 3 FK nullable thay vì GenericForeignKey hay tách bảng. Siết bằng `CheckConstraint`:
 
-> **Phase 1 (thực tế lúc code):** model chỉ có `inbound_note` **NOT NULL** — 2 FK kia chưa tồn tại nên **không có NULL nào** trong sổ kho. Bảng 15 field trên là hình dạng đích khi đủ 3 loại phiếu. Triển khai CheckConstraint "đúng 1 nguồn" dần theo phase: phase 1 là `inbound_note` required; phase 2/3 thêm FK và siết constraint.
+```python
+class Meta:
+    constraints = [
+        models.CheckConstraint(
+            condition=(
+                Q(inbound_note__isnull=False, outbound_note__isnull=True,  stocktake_note__isnull=True)
+              | Q(inbound_note__isnull=True,  outbound_note__isnull=False, stocktake_note__isnull=True)
+              | Q(inbound_note__isnull=True,  outbound_note__isnull=True,  stocktake_note__isnull=False)
+            ),
+            name="ck_sm_exactly_one_source",
+        ),
+        models.CheckConstraint(
+            condition=(
+                Q(unit_price__isnull=False, movement_type="inbound_purchase_from_supplier")
+              | Q(unit_price__isnull=True, ~Q(movement_type="inbound_purchase_from_supplier"))
+            ),
+            name="ck_sm_price_only_purchase",
+        ),
+    ]
+```
+
+> **Triển khai đủ 3 FK + 2 constraint trong đợt OutboundNote + StocktakeNote (design v1.5 — 2026-08-18).** Trước đợt đó (phase 1): chỉ `inbound_note` NOT NULL, không có NULL nào trong sổ kho.
 
 ### 2.2 Phụ thuộc trường theo loại dòng
 
@@ -50,7 +71,7 @@ Một số trường chỉ có nghĩa với loại dòng nhất định — si�
 
 | Constraint                  | Điều kiện                                                                                                |
 | --------------------------- | -------------------------------------------------------------------------------------------------------- |
-| Giá chỉ cho nhập mua        | `unit_price IS NOT NULL` ⇔ `movement_type = inbound_purchase_from_supplier`                            |
+| Giá chỉ cho nhập mua (`ck_sm_price_only_purchase`) | `unit_price IS NOT NULL` ⇔ `movement_type = inbound_purchase_from_supplier`                            |
 | Lý do chỉ cho dòng đặc biệt | `reason` chỉ bắt buộc với dòng `reversal` / `stocktake_adjustment` (validate ở service layer, không ép ở DB) |
 
 ### 2.3 `__str__`
@@ -92,7 +113,9 @@ Các phép tính này là query aggregate trên `StockMovement` (có index `(war
 | --------------------------------- | ----------- | ------------------------------ | ------- |
 | `StockMovement` → `Material`      | N → 1       | Dòng sổ kho là 1 vật tư        |         |
 | `StockMovement` → `Warehouse`     | N → 1       | Dòng sổ kho thuộc 1 kho        |         |
-| `StockMovement` → `InboundNote`   | N → 1       | Nguồn: phiếu nhập (phase 1)    |         |
+| `StockMovement` → `InboundNote`   | N → 1       | Nguồn: phiếu nhập                  |         |
+| `StockMovement` → `OutboundNote`  | N → 1       | Nguồn: phiếu xuất                  |         |
+| `StockMovement` → `StocktakeNote` | N → 1       | Nguồn: phiếu kiểm kê               |         |
 | `StockMovement` → `StockMovement` | N → 1       | `reversal_of` — dòng ngược dấu |         |
 | `InboundNote` → `StockMovement`   | 1 → N       | 1 phiếu chốt → N dòng sổ kho   |         |
 
@@ -106,7 +129,7 @@ Các phép tính này là query aggregate trên `StockMovement` (có index `(war
 | **D4**  | **Tồn tính theo kho, KHÔNG có Location**                                               | Nhất quán Warehouse D1 (YAGNI): kho thực tế là bãi chứa, không kệ/khu. Tồn = theo `(warehouse, material)`.                                                                                                                                                                                                                                                                             |
 | **D5**  | **`unit_price` chỉ lưu cho `inbound_purchase_from_supplier`**        | Giá chỉ có ý nghĩa khi nhập mua. "Giá nhập gần nhất" (F5) = query dòng nhập mua mới nhất. Dòng hoàn trả/xuất không có giá. |
 | **D6**  | **`date` là ngày nghiệp vụ riêng, không dùng `created_at` cho báo cáo**                | Thủ kho có thể nhập bù phiếu hôm qua. Báo cáo kỳ phải theo ngày phiếu (nghiệp vụ), còn `created_at` chỉ để audit thao tác hệ thống.                                                                                                                                                                                                                                                    |
-| **D7**  | **Phân pha: phase 1 chỉ FK `inbound_note`**                                            | `OutboundNote`, `StocktakeNote` chưa thiết kế. Ràng buộc "đúng 1 nguồn" bổ sung dần theo phase — tránh model rỗng bây giờ.                                                                                                                                                                                                                                                             |
+| **D7**  | **Phân pha: phase 1 chỉ FK `inbound_note`** — đã bổ sung đủ 3 FK + CheckConstraint ở design v1.5 | `OutboundNote`, `StocktakeNote` chưa thiết kế lúc đầu. Ràng buộc "đúng 1 nguồn" bổ sung dần theo phase — tránh model rỗng lúc đầu. |
 | **D8**  | **Cột `lot` chừa sẵn (nullable)**                                                      | User chốt: trace theo lô là future scope (charter §5.3). Chừa cột ngay từ đầu để sau này không phải viết lại sổ kho.                                                                                                                                                                                                                                                                   |
 | **D9**  | **Không có API tạo/sửa/xóa dòng sổ kho trực tiếp**                                     | Dòng sổ kho chỉ sinh ra qua hành động **chốt/hủy phiếu** — không cho ai (kể cả admin) ghi sổ tay. Mọi thay đổi tồn đều phải có phiếu + lý do.                                                                                                                                                                                                                                          |
 | **D10** | **3 FK nguồn nullable (concrete FKs) — KHÔNG dùng GenericForeignKey, không tách bảng** | Biết trước danh sách nguồn (3 loại phiếu, cố định). FK thật giữ toàn vẹn tham chiếu + filter/select_related được; GenericForeignKey mất toàn vẹn và không query được (Django docs); tách 3 bảng thì mọi query tồn thành UNION — phá vỡ ý tưởng 1 sổ kho duy nhất. 2/3 cột NULL mỗi dòng là chi phí lưu trữ không đáng kể. Phase 1 còn không có NULL nào (chỉ `inbound_note` NOT NULL). |

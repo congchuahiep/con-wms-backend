@@ -30,7 +30,7 @@ Vòng đời phiếu: giống InboundNote — `draft → posted → voided`, k�
 | 5 | `date` | DateField | default=today | Ngày xuất (ngày nghiệp vụ) |
 | 6 | `warehouse` | FK → `Warehouse` | PROTECT, required | **Kho xuất** |
 | 7 | `to_warehouse` | FK → `Warehouse` | PROTECT, null/blank | **Kho đích** — bắt buộc khi `transfer`, null khi `issue_for_use` |
-| 8 | `destination` | CharField(100) | blank | Nơi nhận (tên công trường) — bắt buộc khi `issue_for_use`; tương lai: FK → `Site` (xem D3) |
+| 8 | `site` | FK → `Site` | PROTECT, null/blank | **Công trường nhận hàng** — bắt buộc khi `issue_for_use`, null khi `transfer` (xem D3) |
 | 9 | `note` | TextField | blank | Ghi chú (kế thừa BaseNote) |
 | 10 | `created_by` / `voided_by` / `voided_at` / `void_reason` / `created_at` / `updated_at` | — | | Kế thừa `BaseNote` |
 
@@ -65,6 +65,7 @@ class OutboundNote(BaseNote):
 |---|---|---|
 | `OutboundNote` → `Warehouse` | N → 1 | Kho xuất (`warehouse`) |
 | `OutboundNote` → `Warehouse` | N → 1 | Kho đích khi điều chuyển (`to_warehouse`) |
+| `OutboundNote` → `Site` | N → 1 | Công trường nhận hàng (`site`) — bắt buộc khi xuất cấp |
 | `OutboundNote` → `iam.User` | N → 1 | Người lập phiếu |
 | `OutboundNoteLine` → `OutboundNote` | N → 1 | Dòng thuộc phiếu, CASCADE |
 | `OutboundNoteLine` → `Material` | N → 1 | Dòng là 1 vật tư |
@@ -91,7 +92,7 @@ Giống InboundNote: với mỗi dòng sổ kho gốc của phiếu (phiếu đi
 |---|---|---|
 | **D1** | **Không có `unit_price` trên dòng xuất** | Nhất quán stock D5 — giá chỉ lưu cho nhập mua, nuôi "giá nhập gần nhất". Dòng xuất không mang giá. |
 | **D2** | **`to_warehouse` trên phiếu, không trên dòng — 1 phiếu = 1 kho đích** | User chốt 2026-08-18: "1 phiếu = 1 kho đích". Thủ kho ít tin học — 1 phiếu điều chuyển = 1 kho nhận. Chuyển nhiều kho → lập nhiều phiếu. |
-| **D3** | **`destination` free text, thiết kế sẵn để sau đổi thành FK → `Site`** | Dự án **có** báo cáo công trường và sẽ có model "Công trường" (Site) trong tương lai (user xác nhận 2026-08-18). Giai đoạn này chưa tạo Site (YAGNI) — để `destination` CharField; khi có Site entity chỉ đổi thành FK nullable, không phá data. |
+| **D3** | **Tạo hẳn entity `Site` (Công trường) — dùng FK, không free text** | Dự án có báo cáo công trường (user xác nhận 2026-08-18) — free text không lọc/tổng hợp theo công trường được. Tạo luôn `Site` (app `sites`, xem [`../site/`](../site/README.md)) thay cho `destination` CharField — khỏi migrate sau. |
 | **D4** | **Chặn cứng tồn âm khi chốt phiếu xuất** | User chốt 2026-08-18: "làm gì có việc xuất hàng từ kho mà hàng âm". Không đủ tồn → 400, không chốt. |
 | **D5** | **Điều chuyển = 1 phiếu → 2 dòng sổ kho cùng lúc** | Chứng từ là 1 (thủ kho lập 1 phiếu), nhưng sổ kho phải ghi 2 đầu (kho đi −, kho đến +). `MovementType` trên dòng sổ phân biệt đầu đi/đến — đúng kiến trúc "chứng từ ≠ dòng sổ kho" (stock model.md §3). |
 | **D6** | **Số phiếu auto-generate `PX-YYYYMMDD-NNN`** | Giống InboundNote D4 — thủ kho không gõ tay, `NNN` = sequence trong ngày của riêng phiếu xuất. |

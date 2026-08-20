@@ -18,6 +18,7 @@
   - `date` DateField default=timezone.localdate
   - `warehouse` FK → Warehouse PROTECT
   - `supplier` FK → Supplier PROTECT null/blank
+  - `site` FK → Site PROTECT null/blank (bắt buộc khi return_from_site, null khi purchase)
   - `created_by` FK → iam.User PROTECT
   - `voided_by` FK → iam.User PROTECT null/blank
   - `voided_at` DateTimeField null/blank
@@ -44,14 +45,14 @@
   - `material` SimpleMaterialSerializer read_only
   - Validate: quantity > 0, unit_price >= 0
 - [x] `inventory/serializers.py`: `InboundNoteSerializer`
-  - `warehouse_id` / `supplier_id` write_only, nested read_only output
+  - `warehouse_id` / `supplier_id` / `site_id` write_only, nested read_only output
   - `lines` nested InboundNoteLineSerializer (many=True)
   - `number`, `status`, `voided_by`, `voided_at` read_only
   - `total_amount` SerializerMethodField = Σ(quantity × unit_price)
-  - Validate: purchase→supplier required, return→supplier null, ≥1 line
+  - Validate: purchase→supplier required + site null; return_from_site→supplier null + site required, ≥1 line
   - `create()` + `update()` với `transaction.atomic`, set line_no, replace-all lines khi update (chỉ draft)
 - [x] `inventory/serializers.py`: `VoidInboundNoteSerializer` — `reason` required
-- [x] `inventory/serializers.py`: `SimpleWarehouseSerializer`, `SimpleSupplierSerializer`, `SimpleMaterialSerializer`, `SimpleUserSerializer` (output)
+- [x] `inventory/serializers.py`: `SimpleWarehouseSerializer`, `SimpleSupplierSerializer`, `SimpleSiteSerializer`, `SimpleMaterialSerializer`, `SimpleUserSerializer` (output)
 
 ## Logic nghiệp vụ
 
@@ -65,7 +66,7 @@
 ## Views
 
 - [x] `inventory/views.py`: `InboundNoteViewSet(ModelViewSet)`
-  - `get_queryset`: `select_related("warehouse", "supplier", "created_by", "voided_by").prefetch_related("lines__material").order_by("-date", "-id")`
+  - `get_queryset`: `select_related("warehouse", "supplier", "site", "created_by", "voided_by").prefetch_related("lines__material").order_by("-date", "-id")`
   - `perform_create`: set `created_by=request.user`, generate `number`
   - `destroy`: chỉ khi draft → xóa cứng; posted/voided → 400
   - `update`/`partial_update`: chỉ khi draft; posted/voided → 400
@@ -73,7 +74,7 @@
   - `@action void`: validate `reason`, gọi `note.void(reason, request.user)`
   - `@extend_schema` + `@extend_schema_view` tags=["InboundNote"]
   - Pagination: PageNumberPagination page_size=20
-- [x] `inventory/filters.py`: `InboundNoteFilter(FilterSet)` — note_type, status, warehouse, supplier, date_from, date_to, search
+- [x] `inventory/filters.py`: `InboundNoteFilter(FilterSet)` — note_type, status, warehouse, supplier, site, date_from, date_to, search
 
 ## URLs
 
@@ -94,6 +95,8 @@
   - POST accountant → 403
   - POST purchase thiếu supplier → 400
   - POST return có supplier → 400
+  - POST return thiếu site → 400
+  - POST purchase có site → 400
   - POST không có lines → 400
   - POST quantity=0 → 400
   - POST unit_price âm → 400
@@ -111,10 +114,10 @@
 
 - [x] `inventory/management/commands/seed_inbound_notes.py`: 2 phiếu mẫu (1 purchase + 1 return) → tự chốt (status=posted + dòng sổ kho)
 
-| number | type | warehouse | supplier | lines |
-|---|---|---|---|---|
-| `PN-20260801-001` | purchase | KHO_CHINH | NCC001 | 2 dòng (xi măng 100 bao × 88,000đ; cát 5.5 m³ × 350,000đ) |
-| `PN-20260802-001` | return_from_site | KHO_CHINH | — | 1 dòng (xi măng công trường trả lại 10 bao × 88,000đ) |
+| number | type | warehouse | supplier | site | lines |
+|---|---|---|---|---|---|
+| `PN-20260801-001` | purchase | KHO_CHINH | NCC001 | — | 2 dòng (xi măng 100 bao × 88,000đ; cát 5.5 m³ × 350,000đ) |
+| `PN-20260802-001` | return_from_site | KHO_CHINH | — | CT_RG | 1 dòng (xi măng công trường trả lại 10 bao × 88,000đ) |
 
 - [x] Chạy `python manage.py seed_inbound_notes` — 2 phiếu đã tạo + đã chốt
 

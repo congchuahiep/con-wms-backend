@@ -1,5 +1,13 @@
 # Change Log — Inbound Note
 
+## v2.4 — 2026-08-18 (Thiết kế)
+
+Bổ sung entity `Site` cho phiếu nhập trả lại (đi cùng đợt site/outbound/stocktake — chưa code):
+
+- `InboundNote` thêm `site` FK → `Site` (PROTECT, null/blank) — **bắt buộc khi `return_from_site`, null khi `purchase`** (D13)
+- User chốt: báo cáo công trường cần đủ 2 chiều — xuất cấp cho công trường (`OutboundNote.site`) + công trường trả hàng về (`InboundNote.site`)
+- API: `siteId` (request, bắt buộc khi return) / `site` (response, null khi purchase); filter `?site=1`; validation: site required khi return, forbidden khi purchase
+
 ## v2.3 — 2026-08-18
 
 Enum gom vào model + đổi semantics `total_quantity` (xem stock v1.4):

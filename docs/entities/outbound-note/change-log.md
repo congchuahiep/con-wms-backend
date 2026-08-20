@@ -1,5 +1,13 @@
 # Change Log — Outbound Note
 
+## v0.2 — 2026-08-18 (Thiết kế)
+
+Thay `destination` free text bằng entity `Site` (Công trường):
+
+- `OutboundNote.destination` CharField → `site` FK → `Site` (PROTECT, null/blank) — bắt buộc khi `issue_for_use`, null khi `transfer`
+- User quyết định tạo hẳn model Site (xem [`../site/`](../site/README.md)) — dự án có báo cáo công trường; free text không lọc/tổng hợp được
+- API: `siteId` (request) / `site` (response); filter `?site=1`; validation: `siteId` bắt buộc khi `issue_for_use`, cấm khi `transfer`
+
 ## v0.1 — 2026-08-18 (Thiết kế)
 
 Thiết kế phiếu xuất, các quyết định chốt với user:
