@@ -1,0 +1,106 @@
+# Backend (con-wms) — CI/CD
+#
+# - CI   (mọi push/PR): ruff + toàn bộ test Django (sqlite test DB)
+# - CD   (push main): migrate DB → deploy Cloud Run (source-based, Cloud Run tự build từ Dockerfile)
+#
+# Secrets cần tạo trong repo (Settings → Secrets and variables → Actions):
+#   GCP_WIF_PROVIDER      — Workload Identity Federation provider
+#                           (vd projects/xxx/locations/global/workloadIdentityPools/yyy/providers/zzz)
+#   GCP_SERVICE_ACCOUNT   — service account deploy (email), cần quyền:
+#                           Cloud Run Admin, Storage Object Admin, Service Account User,
+#                           Secret Manager Secret Accessor
+#   SECRET_KEY            — Django SECRET_KEY (prod)
+#   DATABASE_URL          — PostgreSQL (Neon/Supabase) cho bước migrate
+#
+# Nếu chưa cấu hình WIF, có thể dùng service account key JSON như cách cũ:
+#   - id: auth
+#     uses: google-github-actions/auth@v2
+#     with:
+#       credentials_json: ${{ secrets.GCP_SA_KEY }}
+# (kém an toàn hơn vì key tồn tại lâu — ưu tiên WIF).
+
+name: Backend CI/CD
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+env:
+  REGION: asia-southeast1
+  SERVICE: wms-backend
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Lint (ruff)
+        run: uv run ruff check .
+
+      - name: Tests (Django)
+        run: uv run python manage.py test
+
+  migrate:
+    if: github.ref == 'refs/heads/main'
+    needs: test
+    runs-on: ubuntu-latest
+    env:
+      DEBUG: "False"
+      SECRET_KEY: ${{ secrets.SECRET_KEY }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      ALLOWED_HOSTS: "*"
+      ENABLE_DEMO_SEED: "False"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Apply migrations
+        run: uv run python manage.py migrate --noinput
+
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    needs: migrate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - id: deploy
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: ${{ env.SERVICE }}
+          region: ${{ env.REGION }}
+          source: .
+          # TODO(security): thay ALLOWED_HOSTS=* bằng URL run.app sau lần deploy đầu
+          env_vars: |
+            DEBUG=False
+            ENABLE_DEMO_SEED=False
+            ALLOWED_HOSTS=*
+          # Secret qua Secret Manager — có versioning/rotation (SECRET_KEY, DATABASE_URL)
+          secrets: SECRET_KEY=wms-secret-key:latest,DATABASE_URL=wms-database-url:latest
+
+      - name: Smoke test
+        run: curl -fsS "${{ steps.deploy.outputs.url }}/healthz/" -o /dev/null

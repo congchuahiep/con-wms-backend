@@ -1,10 +1,11 @@
 from django.core.management.base import BaseCommand
+from django.db.models.deletion import ProtectedError
 
 from warehouse.models import Warehouse
 
 
 class Command(BaseCommand):
-    help = "Tạo dữ liệu mẫu cho Warehouse"
+    help = "Seed 2 nhà kho mẫu: 1 kho chính + 1 kho phụ."
 
     def handle(self, *args, **options):
         data = [
@@ -27,15 +28,26 @@ class Command(BaseCommand):
         ]
 
         for item in data:
-            warehouse, created = Warehouse.objects.get_or_create(
+            warehouse, created = Warehouse.objects.update_or_create(
                 code=item["code"],
                 defaults=item,
             )
             if created:
-                self.stdout.write(
-                    self.style.SUCCESS(f"Đã tạo kho: {warehouse}")
-                )
+                self.stdout.write(self.style.SUCCESS(f"Đã tạo kho: {warehouse}"))
             else:
+                self.stdout.write(self.style.WARNING(f"Kho đã tồn tại: {warehouse}"))
+
+        # Seed chỉ giữ 2 kho trung tâm — dọn kho mẫu cũ (KHO_CAT_DA) nếu còn sót
+        for stale in Warehouse.objects.filter(code="KHO_CAT_DA"):
+            try:
+                stale.delete()
+            except ProtectedError:
+                stale.is_active = False
+                stale.save()
                 self.stdout.write(
-                    self.style.WARNING(f"Kho đã tồn tại: {warehouse}")
+                    self.style.WARNING(f"Kho cũ {stale} bị khóa bởi dữ liệu — đã vô hiệu hóa.")
                 )
+
+        self.stdout.write(
+            self.style.SUCCESS("🎉 Seed warehouses hoàn tất — 2 kho trung tâm.")
+        )

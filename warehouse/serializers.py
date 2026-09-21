@@ -1,6 +1,9 @@
 from decimal import ROUND_HALF_UP, Decimal
 
+from django.db.models import Sum
 from rest_framework import serializers
+
+from inventory.models import StockMovement
 
 from .models import Warehouse
 
@@ -9,6 +12,7 @@ class WarehouseSerializer(serializers.ModelSerializer):
     item_count = serializers.SerializerMethodField()
     total_quantity = serializers.SerializerMethodField()
     low_stock = serializers.SerializerMethodField()
+    site = serializers.SerializerMethodField()
 
     class Meta:
         model = Warehouse
@@ -16,6 +20,7 @@ class WarehouseSerializer(serializers.ModelSerializer):
             "id",
             "code",
             "name",
+            "site",
             "address",
             "note",
             "latitude",
@@ -33,14 +38,36 @@ class WarehouseSerializer(serializers.ModelSerializer):
             "longitude": {"coerce_to_string": False},
         }
 
-    def get_item_count(self, obj) -> int:
-        return 0  # TODO: implement khi có model Vật tư
+    def get_site(self, obj):
+        """Công trường sở hữu kho (null với kho thường)."""
+        if obj.site_id is None:
+            return None
+        return {"id": obj.site_id, "code": obj.site.code, "name": obj.site.name}
 
-    def get_total_quantity(self, obj) -> int:
-        return 0  # TODO: implement khi có model Vật tư
+    def _balance_rows(self, obj):
+        """Tồn theo (mặt hàng) của kho — query 1 lần, cache theo request."""
+        cache = self.context.setdefault("_warehouse_balances", {})
+        if obj.id not in cache:
+            cache[obj.id] = list(
+                StockMovement.objects.filter(warehouse=obj)
+                .values("material_id")
+                .annotate(total=Sum("quantity"))
+            )
+        return cache[obj.id]
+
+    def get_item_count(self, obj) -> int:
+        """Số mặt hàng đang có tồn (balance ≠ 0)."""
+        return sum(1 for row in self._balance_rows(obj) if row["total"])
+
+    def get_total_quantity(self, obj) -> float:
+        """Tổng tồn kho (chỉ dương) — m3/kg/bao/viên... theo đơn vị từng mặt hàng."""
+        return float(
+            sum(row["total"] for row in self._balance_rows(obj) if row["total"] > 0)
+        )
 
     def get_low_stock(self, obj) -> int:
-        return 0  # TODO: implement khi có model Vật tư
+        """Số mặt hàng đã hết tồn (balance ≤ 0)."""
+        return sum(1 for row in self._balance_rows(obj) if row["total"] <= 0)
 
     def to_internal_value(self, data):
         """

@@ -170,7 +170,9 @@ class UnitConversionViewSet(
     serializer_class = UnitConversionSerializer
 
     def get_queryset(self):
-        return UnitConversion.objects.select_related("from_unit", "to_unit", "material")
+        return UnitConversion.objects.select_related(
+            "from_unit", "to_unit", "material__unit"
+        )
 
     def get_permissions(self):
         return [IsAdminOrStorekeeper()]

@@ -16,15 +16,19 @@ Including another URLconf
 """
 
 from django.contrib import admin
+from django.http import JsonResponse
 from django.urls import include, path
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
 urlpatterns = [
+    # Health check cho container (Cloud Run / load balancer) — không cần auth
+    path("healthz/", lambda request: JsonResponse({"status": "ok"})),
     path("admin/", admin.site.urls),
     path("api/", include("iam.urls")),
     path("api/", include("warehouse.urls")),
     path("api/", include("catalog.urls")),
     path("api/", include("supplier.urls")),
+    path("api/", include("sites.urls")),
     path("api/", include("inventory.urls")),
     path("schema/", SpectacularAPIView.as_view(), name="schema"),
     path(

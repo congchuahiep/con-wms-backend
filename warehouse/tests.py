@@ -6,6 +6,8 @@ from rest_framework.response import Response
 from rest_framework.test import APIClient
 
 from iam.models import User
+from sites.models import Site
+from warehouse.models import Warehouse
 
 
 class WarehouseAPITestCase(TestCase):
@@ -62,6 +64,7 @@ class WarehouseAPITestCase(TestCase):
         response: Response = self.client.post(
             "/api/warehouses/",
             {"code": "KHO_TEST", "name": "Kho test"},
+            format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data["code"], "KHO_TEST")  # type: ignore[index]
@@ -72,6 +75,7 @@ class WarehouseAPITestCase(TestCase):
         response: Response = self.client.post(
             "/api/warehouses/",
             {"code": "KHO_TEST", "name": "Kho test"},
+            format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
@@ -83,11 +87,13 @@ class WarehouseAPITestCase(TestCase):
         create_resp: Response = self.client.post(
             "/api/warehouses/",
             {"code": "KHO_TEST", "name": "Kho test"},
+            format="json",
         )
         warehouse_id: Any = create_resp.data["id"]  # type: ignore[index]
         response: Response = self.client.put(
             f"/api/warehouses/{warehouse_id}/",
             {"code": "KHO_TEST", "name": "Kho test — updated"},
+            format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["name"], "Kho test — updated")  # type: ignore[index]
@@ -98,6 +104,7 @@ class WarehouseAPITestCase(TestCase):
         create_resp: Response = self.client.post(
             "/api/warehouses/",
             {"code": "KHO_TEST", "name": "Kho test"},
+            format="json",
         )
         warehouse_id: Any = create_resp.data["id"]  # type: ignore[index]
         self.client.logout()
@@ -107,6 +114,7 @@ class WarehouseAPITestCase(TestCase):
         response: Response = self.client.put(
             f"/api/warehouses/{warehouse_id}/",
             {"code": "KHO_TEST", "name": "Kho test — hacked"},
+            format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
@@ -118,6 +126,7 @@ class WarehouseAPITestCase(TestCase):
         create_resp: Response = self.client.post(
             "/api/warehouses/",
             {"code": "KHO_TEST", "name": "Kho test"},
+            format="json",
         )
         warehouse_id: Any = create_resp.data["id"]  # type: ignore[index]
         response: Response = self.client.delete(f"/api/warehouses/{warehouse_id}/")
@@ -133,6 +142,7 @@ class WarehouseAPITestCase(TestCase):
         create_resp: Response = self.client.post(
             "/api/warehouses/",
             {"code": "KHO_TEST", "name": "Kho test"},
+            format="json",
         )
         warehouse_id: Any = create_resp.data["id"]  # type: ignore[index]
         self.client.logout()
@@ -141,3 +151,53 @@ class WarehouseAPITestCase(TestCase):
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
         response: Response = self.client.delete(f"/api/warehouses/{warehouse_id}/")
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    # ---------- Site warehouse (kho công trường) ----------
+
+    def test_list_default_excludes_site_warehouses(self):
+        Site.objects.create(code="CT_RG", name="Công trường cầu Rạch Giá")
+        Warehouse.objects.create(code="KHO_CHINH", name="Kho chính")
+        token: str = self._login("thukho@test.com", "Thukho123!")
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
+
+        response: Response = self.client.get("/api/warehouses/")
+        codes = [r["code"] for r in response.data]  # type: ignore[index]
+        self.assertIn("KHO_CHINH", codes)
+        self.assertNotIn("KHO_CT_RG", codes)
+
+    def test_list_include_site_param_returns_site_warehouses(self):
+        Site.objects.create(code="CT_RG", name="Công trường cầu Rạch Giá")
+        token: str = self._login("thukho@test.com", "Thukho123!")
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
+
+        response: Response = self.client.get("/api/warehouses/?include_site=true")
+        row = next(r for r in response.data if r["code"] == "KHO_CT_RG")  # type: ignore[index]
+        self.assertEqual(row["site"]["code"], "CT_RG")  # type: ignore[index, union-attr]
+
+    def test_list_site_null_for_central_warehouse(self):
+        Warehouse.objects.create(code="KHO_CHINH", name="Kho chính")
+        token: str = self._login("thukho@test.com", "Thukho123!")
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
+
+        response: Response = self.client.get("/api/warehouses/")
+        row = next(r for r in response.data if r["code"] == "KHO_CHINH")  # type: ignore[index]
+        self.assertIsNone(row["site"])  # type: ignore[index]
+
+    def test_delete_site_warehouse_forbidden(self):
+        site = Site.objects.create(code="CT_RG", name="CT Rạch Giá")
+        warehouse = Warehouse.objects.get(site=site)
+        token: str = self._login("admin@test.com", "Admin123!")
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
+
+        # Scope mặc định: kho công trường không nằm trong danh sách (404)
+        default_resp: Response = self.client.delete(f"/api/warehouses/{warehouse.id}/")
+        self.assertEqual(default_resp.status_code, status.HTTP_404_NOT_FOUND)
+
+        # Kể cả khi lấy đủ (include_site) cũng bị chặn xóa (guard 400)
+        guard_resp: Response = self.client.delete(
+            f"/api/warehouses/{warehouse.id}/?include_site=true"
+        )
+        self.assertEqual(guard_resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertTrue(
+            Warehouse.objects.filter(id=warehouse.id, is_active=True).exists()
+        )

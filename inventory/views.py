@@ -11,6 +11,7 @@ from rest_framework.decorators import action
 from rest_framework.filters import SearchFilter
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from catalog.models import Material
 from config.pagination import StandardPageNumberPagination
@@ -18,14 +19,26 @@ from iam.permissions import IsAdminOrStorekeeper
 from warehouse.models import Warehouse
 
 from . import services
-from .filters import InboundNoteFilter, StockBalanceFilter, StockMovementFilter
-from .models import InboundNote, StockMovement
+from .filters import (
+    InboundNoteFilter,
+    OutboundNoteFilter,
+    StockBalanceFilter,
+    StockMovementFilter,
+    StocktakeNoteFilter,
+)
+from .models import InboundNote, OutboundNote, StockMovement, StocktakeNote
 from .serializers import (
     InboundNoteListSerializer,
     InboundNoteSerializer,
+    OutboundNoteListSerializer,
+    OutboundNoteSerializer,
     StockBalanceSerializer,
     StockMovementSerializer,
+    StocktakeNoteListSerializer,
+    StocktakeNoteSerializer,
     VoidInboundNoteSerializer,
+    VoidOutboundNoteSerializer,
+    VoidStocktakeNoteSerializer,
 )
 
 
@@ -71,9 +84,9 @@ class InboundNoteViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         return (
             InboundNote.objects.select_related(
-                "warehouse", "supplier", "created_by", "voided_by"
+                "warehouse", "supplier", "site", "created_by", "voided_by"
             )
-            .prefetch_related("lines__material")
+            .prefetch_related("lines__material__unit")
             .order_by("-date", "-id")
         )
 
@@ -147,6 +160,202 @@ class InboundNoteViewSet(viewsets.ModelViewSet):
         """Hủy phiếu đã chốt → dòng sổ kho ngược dấu (−tồn)."""
         note = self.get_object()
         serializer = VoidInboundNoteSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        note.void(serializer.validated_data["reason"], request.user)
+        return Response(self.get_serializer(note).data)
+
+
+@extend_schema(tags=["OutboundNote"])
+@extend_schema_view(
+    list=extend_schema(summary="Danh sách phiếu xuất"),
+    create=extend_schema(summary="Tạo phiếu xuất (nháp)"),
+    retrieve=extend_schema(summary="Chi tiết phiếu xuất"),
+    update=extend_schema(summary="Cập nhật phiếu nháp"),
+    partial_update=extend_schema(summary="Cập nhật một phần phiếu nháp"),
+    destroy=extend_schema(summary="Xóa phiếu nháp"),
+    post=extend_schema(summary="Chốt phiếu — ghi sổ kho"),
+    void=extend_schema(
+        summary="Hủy phiếu — dòng sổ kho ngược dấu", request=VoidOutboundNoteSerializer
+    ),
+)
+class OutboundNoteViewSet(viewsets.ModelViewSet):
+    serializer_class = OutboundNoteSerializer
+    filter_backends = [DjangoFilterBackend, SearchFilter]
+    filterset_class = OutboundNoteFilter
+    search_fields = ["number", "note"]
+
+    def get_queryset(self):
+        return (
+            OutboundNote.objects.select_related(
+                "warehouse", "site", "to_warehouse", "created_by", "voided_by"
+            )
+            .prefetch_related("lines__material__unit")
+            .order_by("-date", "-id")
+        )
+
+    def get_serializer_class(self):
+        if self.action == "list":
+            return OutboundNoteListSerializer
+        return OutboundNoteSerializer
+
+    def get_permissions(self):
+        if self.action in (
+            "create",
+            "update",
+            "partial_update",
+            "destroy",
+            "post",
+            "void",
+        ):
+            return [IsAdminOrStorekeeper()]
+        return [IsAuthenticated()]
+
+    def perform_create(self, serializer):
+        note_date = serializer.validated_data.get("date") or timezone.localdate()
+        serializer.save(
+            created_by=self.request.user,
+            number=services.generate_outbound_note_number(note_date),
+        )
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if not instance.is_draft:
+            return Response(
+                {
+                    "detail": "Phiếu đã chốt/hủy không được sửa. Hãy hủy phiếu và lập phiếu mới."
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return super().update(request, *args, **kwargs)
+
+    def partial_update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if not instance.is_draft:
+            return Response(
+                {
+                    "detail": "Phiếu đã chốt/hủy không được sửa. Hãy hủy phiếu và lập phiếu mới."
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return super().partial_update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if not instance.is_draft:
+            return Response(
+                {"detail": "Chỉ phiếu nháp mới xóa được. Phiếu đã chốt dùng /void/."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        self.perform_destroy(instance)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True, methods=["post"])
+    def post(self, request, pk=None):
+        note = self.get_object()
+        note.post(request.user)
+        return Response(self.get_serializer(note).data)
+
+    @action(detail=True, methods=["post"])
+    def void(self, request, pk=None):
+        note = self.get_object()
+        serializer = VoidOutboundNoteSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        note.void(serializer.validated_data["reason"], request.user)
+        return Response(self.get_serializer(note).data)
+
+
+@extend_schema(tags=["StocktakeNote"])
+@extend_schema_view(
+    list=extend_schema(summary="Danh sách phiếu kiểm kê"),
+    create=extend_schema(summary="Tạo phiếu kiểm kê (nháp)"),
+    retrieve=extend_schema(summary="Chi tiết phiếu kiểm kê"),
+    update=extend_schema(summary="Cập nhật phiếu nháp"),
+    partial_update=extend_schema(summary="Cập nhật một phần phiếu nháp"),
+    destroy=extend_schema(summary="Xóa phiếu nháp"),
+    post=extend_schema(summary="Chốt phiếu — ghi sổ kho"),
+    void=extend_schema(
+        summary="Hủy phiếu — dòng sổ kho ngược dấu", request=VoidStocktakeNoteSerializer
+    ),
+)
+class StocktakeNoteViewSet(viewsets.ModelViewSet):
+    serializer_class = StocktakeNoteSerializer
+    filter_backends = [DjangoFilterBackend, SearchFilter]
+    filterset_class = StocktakeNoteFilter
+    search_fields = ["number", "note"]
+
+    def get_queryset(self):
+        return (
+            StocktakeNote.objects.select_related("warehouse", "created_by", "voided_by")
+            .prefetch_related("lines__material__unit")
+            .order_by("-date", "-id")
+        )
+
+    def get_serializer_class(self):
+        if self.action == "list":
+            return StocktakeNoteListSerializer
+        return StocktakeNoteSerializer
+
+    def get_permissions(self):
+        if self.action in (
+            "create",
+            "update",
+            "partial_update",
+            "destroy",
+            "post",
+            "void",
+        ):
+            return [IsAdminOrStorekeeper()]
+        return [IsAuthenticated()]
+
+    def perform_create(self, serializer):
+        note_date = serializer.validated_data.get("date") or timezone.localdate()
+        serializer.save(
+            created_by=self.request.user,
+            number=services.generate_stocktake_note_number(note_date),
+        )
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if not instance.is_draft:
+            return Response(
+                {
+                    "detail": "Phiếu đã chốt/hủy không được sửa. Hãy hủy phiếu và lập phiếu mới."
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return super().update(request, *args, **kwargs)
+
+    def partial_update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if not instance.is_draft:
+            return Response(
+                {
+                    "detail": "Phiếu đã chốt/hủy không được sửa. Hãy hủy phiếu và lập phiếu mới."
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return super().partial_update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if not instance.is_draft:
+            return Response(
+                {"detail": "Chỉ phiếu nháp mới xóa được. Phiếu đã chốt dùng /void/."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        self.perform_destroy(instance)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True, methods=["post"])
+    def post(self, request, pk=None):
+        note = self.get_object()
+        note.post(request.user)
+        return Response(self.get_serializer(note).data)
+
+    @action(detail=True, methods=["post"])
+    def void(self, request, pk=None):
+        note = self.get_object()
+        serializer = VoidStocktakeNoteSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         note.void(serializer.validated_data["reason"], request.user)
         return Response(self.get_serializer(note).data)
@@ -236,13 +445,62 @@ class StockMovementViewSet(viewsets.ReadOnlyModelViewSet):
     pagination_class = StockMovementPagination
     filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_class = StockMovementFilter
-    search_fields = ["material__code", "material__name", "inbound_note__number"]
+    search_fields = [
+        "material__code",
+        "material__name",
+        "inbound_note__number",
+        "outbound_note__number",
+        "stocktake_note__number",
+    ]
 
     def get_queryset(self):
         qs = StockMovement.objects.select_related(
-            "material", "warehouse", "inbound_note", "created_by"
+            "material__unit",
+            "warehouse",
+            "inbound_note",
+            "outbound_note",
+            "stocktake_note",
+            "created_by",
         )
         originals_only = self.request.query_params.get("originals_only", "true")
         if originals_only.lower() != "false":
             qs = qs.filter(reversal_of__isnull=True)
         return qs.order_by("-date", "-id")
+
+
+@extend_schema(
+    tags=["Dashboard"],
+    summary="Số lượng phiếu nháp",
+    description=(
+        "Đếm số phiếu đang ở trạng thái nháp (draft) theo từng loại: "
+        "phiếu nhập, phiếu xuất, phiếu kiểm kê."
+    ),
+    responses={
+        200: {
+            "type": "object",
+            "properties": {
+                "inbound_notes": {"type": "integer"},
+                "outbound_notes": {"type": "integer"},
+                "stocktake_notes": {"type": "integer"},
+                "total": {"type": "integer"},
+            },
+        }
+    },
+)
+class DraftNoteCountView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        counts = {
+            "inbound_notes": InboundNote.objects.filter(
+                status=InboundNote.Status.DRAFT
+            ).count(),
+            "outbound_notes": OutboundNote.objects.filter(
+                status=OutboundNote.Status.DRAFT
+            ).count(),
+            "stocktake_notes": StocktakeNote.objects.filter(
+                status=StocktakeNote.Status.DRAFT
+            ).count(),
+        }
+        counts["total"] = sum(counts.values())
+        return Response(counts)

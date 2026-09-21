@@ -79,7 +79,7 @@
       },
       "quantity": "100.000",
       "unitPrice": "88000.00",
-      "inboundNote": { "id": 3, "number": "PN-20260813-001" },
+      "sourceNote": { "id": 3, "number": "PN-20260813-001", "noteType": "inbound" },
       "reversalOf": null,
       "reason": "",
       "createdBy": { "id": 2, "email": "thukho@test.com" },
@@ -96,6 +96,30 @@
   }
 }
 ```
+
+## Field `sourceNote` — phiếu nguồn của dòng sổ kho (v1.6)
+
+Mỗi dòng sổ kho trả đúng **1** field `sourceNote` (thay cho 3 field
+`inboundNote` / `outboundNote` / `stocktakeNote` cũ):
+
+```jsonc
+"sourceNote": { "id": 3, "number": "PN-20260813-001", "noteType": "inbound" }
+```
+
+| `movementType` | `sourceNote.noteType` | Phiếu nguồn |
+|---|---|---|
+| `inbound_purchase_from_supplier` | `inbound` | Phiếu nhập (`purchase`) |
+| `inbound_return_from_site` | `inbound` | Phiếu nhập (`return_from_site`) |
+| `outbound_issue_for_use` | `outbound` | Phiếu xuất (`issue_for_use`) |
+| `outbound_transfer_to_warehouse` | `outbound` | Phiếu xuất điều chuyển — dòng xuất ở **kho nguồn** |
+| `inbound_transfer_from_warehouse` | `outbound` | **CÙNG phiếu xuất điều chuyển** — dòng nhập ở **kho đích** |
+| `stocktake_adjustment` | `stocktake` | Phiếu kiểm kê |
+| Dòng reversal (`reversalOf != null`) | như dòng gốc | Cùng phiếu nguồn của dòng gốc (phiếu đã hủy) |
+
+`noteType` do backend suy từ FK nguồn thực tế (`inbound_note` / `outbound_note` /
+`stocktake_note` — bất biến `ck_sm_exactly_one_source`), **không** phải map ngược từ
+`movementType`. Hiện mọi dòng đều có phiếu nguồn; field giữ `null`-able để tương lai
+mở rộng (dòng điều chỉnh không thuộc phiếu nào).
 
 ## Validation rules
 

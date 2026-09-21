@@ -1,5 +1,6 @@
 # ty: ignore
 
+from datetime import date
 from decimal import Decimal
 from typing import Any
 
@@ -13,7 +14,14 @@ from iam.models import User
 from supplier.models import Supplier
 from warehouse.models import Warehouse
 
-from .models import InboundNote, StockMovement
+from .models import (
+    InboundNote,
+    OutboundNote,
+    OutboundNoteLine,
+    StockMovement,
+    StocktakeLine,
+    StocktakeNote,
+)
 
 
 class InventoryTestCase(TestCase):
@@ -366,7 +374,9 @@ class StockAPITestCase(InventoryTestCase):
         self.assertEqual(response.data, [])  # type: ignore[comparison-overlap]
 
     def test_return_note_does_not_set_last_price(self):
-        self._post_note(note_type="return_from_site", supplier_id=None)
+        from sites.models import Site
+        site = Site.objects.create(code="CT_TMP", name="CT tmp")
+        self._post_note(note_type="return_from_site", supplier_id=None, site_id=site.id)
         response: Response = self.client.get("/api/stock/")
         row = response.data[0]  # type: ignore[index]
         self.assertEqual(row["quantity"], "100.000")
@@ -419,16 +429,134 @@ class StockAPITestCase(InventoryTestCase):
         response = self.client.get("/api/stock/movements/?originals_only=false")
         items = response.data["items"]  # type: ignore[index]
         self.assertEqual(len(items), 2)  # gốc + ngược dấu
+        original = next(item for item in items if item["reversal_of"] is None)
+        reversal = next(item for item in items if item["reversal_of"] is not None)
+        # Dòng reversal giữ NGUYÊN phiếu nguồn của dòng gốc (phiếu đã hủy)
+        self.assertEqual(reversal["source_note"], original["source_note"])
+        self.assertEqual(reversal["source_note"]["note_type"], "inbound")
 
     def test_movements_trace_inbound_note(self):
         data = self._post_note()
         response: Response = self.client.get("/api/stock/movements/")
         item = response.data["items"][0]  # type: ignore[index]
-        self.assertEqual(item["inbound_note"]["number"], data["number"])
+        self.assertEqual(
+            item["source_note"],
+            {"id": data["id"], "number": data["number"], "note_type": "inbound"},
+        )
         self.assertEqual(
             item["movement_type_label"], "Nhập kho: mua hàng từ nhà cung cấp"
         )
         self.assertEqual(item["created_by"]["email"], "thukho@test.com")
+
+    def test_movements_source_note_for_all_types(self):
+        """sourceNote trỏ đúng phiếu cho mọi loại dòng, kể cả reversal (v1.6)."""
+        inbound = self._post_note()  # tồn 100 (phiếu nhập PN)
+
+        # Phiếu xuất cấp phát: 20
+        outbound = OutboundNote.objects.create(
+            number="PX-TEST-001",
+            date=date(2026, 9, 15),
+            warehouse=self.warehouse,
+            note_type=OutboundNote.Type.ISSUE_FOR_USE,
+            created_by=self.storekeeper,
+        )
+        OutboundNoteLine.objects.create(
+            outbound_note=outbound,
+            material=self.material,
+            quantity=Decimal("20.000"),
+            line_no=0,
+        )
+        outbound.post(self.storekeeper)
+
+        # Phiếu xuất điều chuyển: 10 → kho test 2
+        warehouse_2 = Warehouse.objects.create(code="KHO_TEST_2", name="Kho test 2")
+        transfer = OutboundNote.objects.create(
+            number="PX-TEST-002",
+            date=date(2026, 9, 16),
+            warehouse=self.warehouse,
+            to_warehouse=warehouse_2,
+            note_type=OutboundNote.Type.TRANSFER,
+            created_by=self.storekeeper,
+        )
+        OutboundNoteLine.objects.create(
+            outbound_note=transfer,
+            material=self.material,
+            quantity=Decimal("10.000"),
+            line_no=0,
+        )
+        transfer.post(self.storekeeper)
+
+        # Phiếu kiểm kê: chênh lệch -1.5
+        stocktake = StocktakeNote.objects.create(
+            number="PK-TEST-001",
+            date=date(2026, 9, 18),
+            warehouse=self.warehouse,
+            created_by=self.storekeeper,
+        )
+        StocktakeLine.objects.create(
+            stocktake_note=stocktake,
+            material=self.material,
+            difference=Decimal("-1.500"),
+            reason="Hao hụt trong quá trình bảo quản",
+            line_no=0,
+        )
+        stocktake.post(self.storekeeper)
+
+        # Hủy phiếu nhập → dòng reversal cũng giữ nguyên phiếu nguồn
+        self.client.post(
+            f"/api/inbound-notes/{inbound['id']}/void/",
+            {"reason": "hủy test"},
+            format="json",
+        )
+
+        response: Response = self.client.get(
+            f"/api/stock/movements/?originals_only=false&material={self.material.id}"
+        )
+        items = response.data["items"]  # type: ignore[index]
+        by_type: dict[str, list[dict[str, Any]]] = {}
+        for item in items:
+            by_type.setdefault(item["movement_type"], []).append(item)
+
+        # inbound purchase: dòng gốc + reversal — cả 2 trỏ về PN
+        purchase_rows = by_type["inbound_purchase_from_supplier"]
+        self.assertEqual(len(purchase_rows), 2)
+        for row in purchase_rows:
+            self.assertEqual(
+                row["source_note"],
+                {
+                    "id": inbound["id"],
+                    "number": inbound["number"],
+                    "note_type": "inbound",
+                },
+            )
+        original = next(row for row in purchase_rows if row["reversal_of"] is None)
+        reversal = next(row for row in purchase_rows if row["reversal_of"] is not None)
+        self.assertEqual(reversal["reversal_of"], original["id"])
+
+        # outbound issue + transfer đều trỏ về phiếu XUẤT
+        issue = by_type["outbound_issue_for_use"][0]
+        self.assertEqual(
+            issue["source_note"],
+            {"id": outbound.id, "number": "PX-TEST-001", "note_type": "outbound"},
+        )
+        transfer_out = by_type["outbound_transfer_to_warehouse"][0]
+        transfer_in = by_type["inbound_transfer_from_warehouse"][0]
+        self.assertEqual(
+            transfer_out["source_note"],
+            {"id": transfer.id, "number": "PX-TEST-002", "note_type": "outbound"},
+        )
+        # Dòng nhập ở kho đích — CÙNG phiếu xuất điều chuyển, khác kho
+        self.assertEqual(transfer_in["source_note"], transfer_out["source_note"])
+        self.assertEqual(transfer_in["warehouse"]["id"], warehouse_2.id)
+        self.assertEqual(transfer_out["quantity"], "-10.000")
+        self.assertEqual(transfer_in["quantity"], "10.000")
+
+        # stocktake
+        adjustment = by_type["stocktake_adjustment"][0]
+        self.assertEqual(
+            adjustment["source_note"],
+            {"id": stocktake.id, "number": "PK-TEST-001", "note_type": "stocktake"},
+        )
 
     def test_movements_filter_by_type_and_date(self):
         self._post_note()
@@ -454,3 +582,95 @@ class StockAPITestCase(InventoryTestCase):
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
         response: Response = self.client.get("/api/stock/movements/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+
+class DraftCountAPITestCase(InventoryTestCase):
+    def test_draft_count_requires_auth(self):
+        response: Response = self.client.get("/api/draft-count/")
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_draft_count(self):
+        token = self._login("thukho@test.com", "Thukho123!")
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
+
+        self._create_note(self.storekeeper)
+        self._create_note(self.storekeeper)
+
+        response: Response = self.client.get("/api/draft-count/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["inbound_notes"], 2)  # type: ignore[index]
+        self.assertEqual(response.data["outbound_notes"], 0)  # type: ignore[index]
+        self.assertEqual(response.data["stocktake_notes"], 0)  # type: ignore[index]
+        self.assertEqual(response.data["total"], 2)  # type: ignore[index]
+
+    def test_draft_count_excludes_posted_notes(self):
+        token = self._login("thukho@test.com", "Thukho123!")
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
+
+        data = self._create_note(self.storekeeper)
+        response: Response = self.client.post(f"/api/inbound-notes/{data['id']}/post/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        response = self.client.get("/api/draft-count/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["inbound_notes"], 0)  # type: ignore[index]
+        self.assertEqual(response.data["total"], 0)  # type: ignore[index]
+
+
+class OutboundSiteWarehouseTestCase(InventoryTestCase):
+    """D6 — kho công trường chỉ xuất dùng cho chính công trường của nó."""
+
+    def setUp(self):
+        super().setUp()
+        from sites.models import Site
+
+        self.site_a = Site.objects.create(code="CT_A", name="Công trường A")
+        self.site_b = Site.objects.create(code="CT_B", name="Công trường B")
+        self.site_a_warehouse = self.site_a.warehouse  # KHO_CT_A — tự động tạo
+
+    def _login_storekeeper(self):
+        token = self._login("thukho@test.com", "Thukho123!")
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
+
+    def _outbound_payload(self, **overrides):
+        payload = {
+            "note_type": "issue_for_use",
+            "date": "2026-08-13",
+            "warehouse_id": self.site_a_warehouse.id,
+            "site_id": self.site_a.id,
+            "to_warehouse_id": None,
+            "note": "Phiếu xuất test",
+            "lines": [
+                {"material_id": self.material.id, "quantity": "10", "note": ""}
+            ],
+        }
+        payload.update(overrides)
+        return payload
+
+    def test_site_warehouse_wrong_site_forbidden(self):
+        self._login_storekeeper()
+        response: Response = self.client.post(
+            "/api/outbound-notes/",
+            self._outbound_payload(site_id=self.site_b.id),
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("site_id", response.data["fields"])
+
+    def test_site_warehouse_own_site_allowed(self):
+        self._login_storekeeper()
+        response: Response = self.client.post(
+            "/api/outbound-notes/",
+            self._outbound_payload(site_id=self.site_a.id),
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+    def test_central_warehouse_any_site_allowed(self):
+        self._login_storekeeper()
+        response: Response = self.client.post(
+            "/api/outbound-notes/",
+            self._outbound_payload(warehouse_id=self.warehouse.id),
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)

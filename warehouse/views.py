@@ -1,5 +1,6 @@
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework import viewsets
+from rest_framework.exceptions import ValidationError
 from rest_framework.filters import SearchFilter
 from rest_framework.permissions import IsAuthenticated
 
@@ -45,7 +46,18 @@ class WarehouseViewSet(viewsets.ModelViewSet):
     filterset_class = WarehouseFilter
 
     def get_queryset(self):
-        return Warehouse.objects.all().order_by("name")
+        """
+        Danh sách mặc định chỉ trả kho trung tâm (`site=null`) — kho công trường
+        quản qua API Công trường. Truyền `?include_site=true` nếu cần đủ mọi kho
+        (dropdown chọn kho khi lập phiếu, lọc sổ kho...).
+        """
+        qs = Warehouse.objects.all().order_by("name")
+        include_site = (
+            self.request.query_params.get("include_site", "false").lower() == "true"
+        )
+        if not include_site:
+            qs = qs.filter(site__isnull=True)
+        return qs
 
     def get_permissions(self):
         if self.action in ("create", "update", "partial_update", "destroy"):
@@ -54,5 +66,9 @@ class WarehouseViewSet(viewsets.ModelViewSet):
 
     def perform_destroy(self, instance):
         """Soft delete: set is_active=False instead of hard delete."""
+        if instance.site_id is not None:
+            raise ValidationError(
+                {"detail": "Kho công trường được quản lý qua trang Công trường — không xóa được."}
+            )
         instance.is_active = False
         instance.save()

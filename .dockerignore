@@ -1,0 +1,24 @@
+# Không mang môi trường/artifact của host vào image
+.venv/
+__pycache__/
+*.py[cod]
+build/
+dist/
+*.egg-info
+
+# Dữ liệu dev — không bao giờ cho vào image prod
+db.sqlite3
+staticfiles/
+
+# Tool/IDE/local
+.ruff_cache/
+.ropeproject/
+.idea/
+.vscode/
+.git/
+docs/
+
+# Env thật — secret phải qua Cloud Run/Secret Manager, không đóng vào image
+.env
+.env.*
+!.env.example

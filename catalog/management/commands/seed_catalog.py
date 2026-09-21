@@ -4,46 +4,64 @@ from catalog.models import Material, MaterialCategory, Unit, UnitConversion
 
 
 class Command(BaseCommand):
-    help = "Seed dữ liệu mẫu cho Catalog (danh mục, đơn vị, vật tư, quy đổi)."
+    help = "Seed dữ liệu mẫu cho Catalog (danh mục, đơn vị, vật tư, quy đổi) — upsert từng phần tử."
 
     def handle(self, *args, **options):
         self._seed_categories()
         self._seed_units()
         self._seed_materials()
         self._seed_conversions()
-        self.stdout.write(self.style.SUCCESS("Seed catalog OK"))
+        self.stdout.write("Seed catalog OK")
 
     def _seed_categories(self):
-        if MaterialCategory.objects.exists():
-            return
-
         # L1
-        root = MaterialCategory.objects.create(code="VLXD", name="Vật liệu xây dựng")
+        root, _ = MaterialCategory.objects.update_or_create(
+            code="VLXD", defaults={"name": "Vật liệu xây dựng"}
+        )
 
         # L2
-        xm = MaterialCategory.objects.create(code="XM", name="Xi măng", parent=root)
-        cat = MaterialCategory.objects.create(code="CAT", name="Cát", parent=root)
-        da = MaterialCategory.objects.create(code="DA", name="Đá", parent=root)
-        gach = MaterialCategory.objects.create(code="GACH", name="Gạch", parent=root)
-        thep = MaterialCategory.objects.create(code="THEP", name="Thép", parent=root)
+        MaterialCategory.objects.update_or_create(
+            code="XM", defaults={"name": "Xi măng", "parent": root}
+        )
+        MaterialCategory.objects.update_or_create(
+            code="CAT", defaults={"name": "Cát", "parent": root}
+        )
+        MaterialCategory.objects.update_or_create(
+            code="DA", defaults={"name": "Đá", "parent": root}
+        )
+        gach, _ = MaterialCategory.objects.update_or_create(
+            code="GACH", defaults={"name": "Gạch", "parent": root}
+        )
+        thep, _ = MaterialCategory.objects.update_or_create(
+            code="THEP", defaults={"name": "Thép", "parent": root}
+        )
 
         # L3
-        MaterialCategory.objects.create(code="GACH_ONG", name="Gạch ống", parent=gach)
-        MaterialCategory.objects.create(code="GACH_DAC", name="Gạch đặc", parent=gach)
+        MaterialCategory.objects.update_or_create(
+            code="GACH_ONG", defaults={"name": "Gạch ống", "parent": gach}
+        )
+        MaterialCategory.objects.update_or_create(
+            code="GACH_DAC", defaults={"name": "Gạch đặc", "parent": gach}
+        )
 
-        thep_tron = MaterialCategory.objects.create(code="THEP_TRON", name="Thép tròn", parent=thep)
-        MaterialCategory.objects.create(code="THEP_HINH", name="Thép hình", parent=thep)
+        thep_tron, _ = MaterialCategory.objects.update_or_create(
+            code="THEP_TRON", defaults={"name": "Thép tròn", "parent": thep}
+        )
+        MaterialCategory.objects.update_or_create(
+            code="THEP_HINH", defaults={"name": "Thép hình", "parent": thep}
+        )
 
         # L4 — dưới THEP_TRON
-        MaterialCategory.objects.create(code="THEP_TRON_NHO", name="Thép tròn D≤10", parent=thep_tron)
-        MaterialCategory.objects.create(code="THEP_TRON_LON", name="Thép tròn D>10", parent=thep_tron)
+        MaterialCategory.objects.update_or_create(
+            code="THEP_TRON_NHO", defaults={"name": "Thép tròn D≤10", "parent": thep_tron}
+        )
+        MaterialCategory.objects.update_or_create(
+            code="THEP_TRON_LON", defaults={"name": "Thép tròn D>10", "parent": thep_tron}
+        )
 
-        self.stdout.write("  Categories: 12 created (1 L1 + 5 L2 + 4 L3 + 2 L4)")
+        self.stdout.write(f"  Categories OK ({MaterialCategory.objects.count()})")
 
     def _seed_units(self):
-        if Unit.objects.exists():
-            return
-
         units = [
             ("BAO", "Bao"),
             ("KG", "Kilogram"),
@@ -55,13 +73,10 @@ class Command(BaseCommand):
             ("VIEN", "Viên"),
         ]
         for code, name in units:
-            Unit.objects.create(code=code, name=name)
-        self.stdout.write(f"  Units: {len(units)} created")
+            Unit.objects.update_or_create(code=code, defaults={"name": name})
+        self.stdout.write(f"  Units OK ({Unit.objects.count()})")
 
     def _seed_materials(self):
-        if Material.objects.exists():
-            return
-
         cat_xm = MaterialCategory.objects.get(code="XM")
         cat_cat = MaterialCategory.objects.get(code="CAT")
         cat_da = MaterialCategory.objects.get(code="DA")
@@ -100,15 +115,13 @@ class Command(BaseCommand):
             ("GACH-DAC", "Gạch đặc", cat_gach_dac, u_vien, "Gạch thẻ đặc, 40x80x180mm"),
         ]
         for code, name, cat, unit, desc in materials:
-            Material.objects.create(
-                code=code, name=name, category=cat, unit=unit, description=desc
+            Material.objects.update_or_create(
+                code=code,
+                defaults={"name": name, "category": cat, "unit": unit, "description": desc},
             )
-        self.stdout.write(f"  Materials: {len(materials)} created")
+        self.stdout.write(f"  Materials OK ({Material.objects.count()})")
 
     def _seed_conversions(self):
-        if UnitConversion.objects.exists():
-            return
-
         u_tan = Unit.objects.get(code="TAN")
         u_kg = Unit.objects.get(code="KG")
         u_m3 = Unit.objects.get(code="M3")
@@ -128,7 +141,10 @@ class Command(BaseCommand):
             (u_cay, u_kg, 7.4, thep_d10),
         ]
         for from_u, to_u, factor, mat in conversions:
-            UnitConversion.objects.create(
-                from_unit=from_u, to_unit=to_u, factor=factor, material=mat
+            UnitConversion.objects.update_or_create(
+                from_unit=from_u,
+                to_unit=to_u,
+                material=mat,
+                defaults={"factor": factor},
             )
-        self.stdout.write(f"  Conversions: {len(conversions)} created")
+        self.stdout.write(f"  Conversions OK ({UnitConversion.objects.count()})")

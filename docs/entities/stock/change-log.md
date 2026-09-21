@@ -1,5 +1,21 @@
 # Change Log — Stock (Sổ kho & Tồn kho)
 
+## v1.6 — 2026-09-20 — Trả `sourceNote` cho mọi loại dòng sổ kho
+
+Theo yêu cầu thay đổi API từ frontend (`con-wms-frontend/docs/features/stock/api-change-request.md`): cột "Phiếu" ở trang Sổ kho chỉ hiện được số phiếu nhập vì type FE chỉ khai báo `inboundNote`.
+
+**Trả lời câu hỏi A/B: chọn phương án A — `sourceNote`** (gọn + tự mô tả; FE render 1 cột → 1 field, không phải map `movementType` → field). Phát hiện thêm: từ v1.5 backend **đã** trả đủ 3 field `inbound_note`/`outbound_note`/`stocktake_note` (camelCase qua renderer) — vấn đề thực tế là FE type thiếu khai báo + chưa có `noteType`.
+
+| # | Thay đổi |
+|---|---|
+| 1 | `StockMovementSerializer`: bỏ 3 field `inboundNote`/`outboundNote`/`stocktakeNote` → **1 field `source_note` = `{id, number, note_type}`** (`noteType` trong JSON thật — camelCase renderer); `get_source_note` map từ đúng 1 trong 3 FK (bất biến `ck_sm_exactly_one_source`) |
+| 2 | Dòng `inbound_transfer_from_warehouse` (kho đích) trỏ về **CÙNG phiếu xuất điều chuyển** → `noteType="outbound"`; dòng reversal (`reversal_of != null`) giữ nguyên phiếu nguồn của dòng gốc — cả 2 tự đúng vì FK ghi sổ đã mang sẵn |
+| 3 | Xóa 3 serializer `Simple*NoteSerializer` (chỉ còn dùng cho 3 field đã bỏ) |
+| 4 | Test: cập nhật trace test + thêm `test_movements_source_note_for_all_types` (6 loại dòng + reversal) |
+| 5 | **Không đổi**: model/FK/migration (đã đủ từ v1.5), `GET /api/stock/`, query params (giữ `inbound_note`), các field khác của `StockMovement` |
+
+Validate: thay đổi **serializer-only** (không model field/constraint mới — không cần tra Context7 Django model); pattern `SerializerMethodField` + `@extend_schema_field` + renderer camelCase đã dùng sẵn trong chính file này (`StockBalanceSerializer`). Test chạy sau: 35/35 OK app `inventory`.
+
 ## v1.5 — 2026-08-18 (Design — chưa code)
 
 Thiết kế OutboundNote + StocktakeNote ([`../outbound-note/`](../outbound-note/README.md), [`../stocktake/`](../stocktake/README.md)) — kéo theo sổ kho:

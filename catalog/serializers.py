@@ -27,9 +27,11 @@ class SimpleUnitSerializer(serializers.ModelSerializer):
 class SimpleMaterialSerializer(serializers.ModelSerializer):
     """Dùng để nhúng vào UnitConversionSerializer output."""
 
+    unit = serializers.CharField(source="unit.code", read_only=True)
+
     class Meta:
         model = Material
-        fields = ["id", "code", "name"]
+        fields = ["id", "code", "name", "unit"]
 
 
 class MaterialCategorySerializer(serializers.ModelSerializer):
@@ -326,7 +328,7 @@ class DetailedUnitSerializer(serializers.ModelSerializer):
 
         # 1. Direct conversions
         direct = obj.conversions_from.select_related(
-            "to_unit", "material"
+            "to_unit", "material", "material__unit"
         )
         result.extend(
             UnitConversionSerializer(direct, many=True, context=self.context).data

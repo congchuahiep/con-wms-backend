@@ -7,6 +7,14 @@ wheels/
 *.egg-info
 db.sqlite3
 
+# Static files build (collectstatic)
+staticfiles/
+
+# Environment (secret phải qua Secret Manager ở prod)
+.env
+.env.*
+!.env.example
+
 # Virtual environments
 .venv
 

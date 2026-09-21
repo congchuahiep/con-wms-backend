@@ -198,7 +198,7 @@ class MaterialCategoryAPITests(TestCase):
         self.assertEqual(resp.status_code, status.HTTP_409_CONFLICT)
         self.assertIn("detail", resp.data)
         self.assertIn("blocked_by", resp.data)
-        self.assertIn("Vật tư — Đá 1x2", resp.data["blocked_by"][0])
+        self.assertIn("Vật tư - Đá 1x2", resp.data["blocked_by"][0])
 
 
 class MaterialAPITests(TestCase):
@@ -671,7 +671,7 @@ class UnitConversionAPITests(TestCase):
             format="json",
         )
         self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("material_id", resp.data)
+        self.assertIn("material_id", resp.data["fields"])
 
     def test_create_conversion_global(self):
         """POST /units/TAN/conversions/ — global, không materialId → 201."""
@@ -701,7 +701,7 @@ class UnitConversionAPITests(TestCase):
             format="json",
         )
         self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("material_id", resp.data)
+        self.assertIn("material_id", resp.data["fields"])
 
     def test_update_conversion(self):
         self.client.force_authenticate(self.admin)

@@ -5,6 +5,14 @@ class Warehouse(models.Model):
     id = models.BigAutoField(primary_key=True)
     code = models.CharField(max_length=20, unique=True, verbose_name="Mã kho")
     name = models.CharField(max_length=200, verbose_name="Tên kho")
+    site = models.OneToOneField(
+        "sites.Site",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="warehouse",
+        verbose_name="Công trường sở hữu (kho công trường)",
+    )
     address = models.TextField(blank=True, verbose_name="Địa chỉ")
     note = models.TextField(blank=True, verbose_name="Ghi chú")
     latitude = models.DecimalField(
