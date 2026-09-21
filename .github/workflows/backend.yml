@@ -88,19 +88,24 @@ jobs:
           workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
+      # Source-based deploy: Cloud Run tự build từ Dockerfile trong repo
+      # (không cần build/push image riêng — đơn giản như CD backend cũ)
       - id: deploy
         uses: google-github-actions/deploy-cloudrun@v2
         with:
           service: ${{ env.SERVICE }}
           region: ${{ env.REGION }}
           source: .
-          # TODO(security): thay ALLOWED_HOSTS=* bằng URL run.app sau lần deploy đầu
+          # Đơn giản: env lấy thẳng từ GitHub secrets (như CD Flask cũ).
+          # Lưu ý: giá trị hiển thị trong cấu hình service (mã hoá at-rest) —
+          # chấp nhận được với quy mô nhỏ; muốn chặt hơn thì chuyển sang
+          # Secret Manager (gcloud secrets create … + thay dòng env dưới).
           env_vars: |
             DEBUG=False
             ENABLE_DEMO_SEED=False
             ALLOWED_HOSTS=*
-          # Secret qua Secret Manager — có versioning/rotation (SECRET_KEY, DATABASE_URL)
-          secrets: SECRET_KEY=wms-secret-key:latest,DATABASE_URL=wms-database-url:latest
+            SECRET_KEY=${{ secrets.SECRET_KEY }}
+            DATABASE_URL=${{ secrets.DATABASE_URL }}
 
       - name: Smoke test
         run: curl -fsS "${{ steps.deploy.outputs.url }}/healthz/" -o /dev/null

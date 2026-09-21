@@ -35,18 +35,17 @@ docker push $IMAGE:latest
 > Image tự chạy `collectstatic` (WhiteNoise phục vụ static/admin) và serve qua
 > **Gunicorn** đúng `$PORT` mà Cloud Run cấp. Health check: `GET /healthz/`.
 
-## 3. Tạo database (Neon/Supabase) + lưu secret
+## 3. Tạo database (Neon/Supabase) + chuẩn bị biến môi trường
 
 - Tạo PostgreSQL free tier trên **Neon** (0.5GB, tự ngủ) hoặc **Supabase** (500MB).
 - Lấy connection string dạng: `postgresql://user:password@host/dbname?sslmode=require`
-- Tạo secret trên GCP Secret Manager:
 
-```bash
-echo -n 'postgresql://user:password@host/dbname?sslmode=require' | \
-  gcloud secrets create wms-database-url --data-file=-
-echo -n 'MOT_SECRET_KEY_DAI_VA_NGẪU_NHIÊN_32+KÝ_TỰ' | \
-  gcloud secrets create wms-secret-key --data-file=-
-```
+Backend đọc 2 biến môi trường `SECRET_KEY` + `DATABASE_URL`. Có 2 cách cấp:
+
+- **Đơn giản (khuyên dùng)**: truyền thẳng bằng `--set-env-vars` khi deploy
+  (xem §4) / qua GitHub secrets nếu dùng Actions.
+- **Chặt hơn (tùy chọn)**: để trong **Secret Manager** rồi gắn bằng `--set-secrets`
+  hoặc `secrets:` trong workflow — có versioning/rotation, giá trị không lộ trong cấu hình service.
 
 ## 4. Deploy Cloud Run
 
@@ -56,17 +55,18 @@ gcloud run deploy $SERVICE \
   --region $REGION \
   --cpu 1 --memory 512Mi --min-instances 0 --max-instances 3 \
   --allow-unauthenticated \
-  --set-env-vars DEBUG=False,ENABLE_DEMO_SEED=False \
-  --set-env-vars ALLOWED_HOSTS=$(gcloud run services describe $SERVICE --region $REGION --format='value(status.url)' | sed 's|https://||') \
-  --set-secrets SECRET_KEY=wms-secret-key:latest,DATABASE_URL=wms-database-url:latest
+  --set-env-vars DEBUG=False,ENABLE_DEMO_SEED=False,ALLOWED_HOSTS=* \
+  --set-env-vars SECRET_KEY=<SECRET_KEY_DAI_VA_NGẪU_NHIÊN_32+KÝ_TỰ> \
+  --set-env-vars DATABASE_URL='postgresql://user:password@host/dbname?sslmode=require'
 ```
 
-> - `--allow-unauthenticated`: Cloud Run URL công khai, nhưng **mọi API đều cần JWT**
->   (ngoại trừ login/register) nên an toàn như một endpoint nội bộ phía sau ứng dụng.
->   Muốn chặt hơn → đặt sau load balancer + IAM (xem §7).
-> - `DEBUG=False` sẽ **từ chối khởi động** nếu thiếu `SECRET_KEY`/`ALLOWED_HOSTS` (bảo vệ ngược).
-> - Dù deploy bằng `gcloud` hay GitHub Actions đều được — workflow tự động:
->   migrate → deploy (`source: .`) → smoke test `/healthz/`.
+> Muốn chặt hơn (giấu giá trị khỏi cấu hình service): thay 2 biến cuối bằng
+> `--set-secrets SECRET_KEY=wms-secret-key:latest,DATABASE_URL=wms-database-url:latest`
+> (cần tạo secret trước: `gcloud secrets create …`).
+>
+> - `--allow-unauthenticated`: URL công khai nhưng **mọi API đều cần JWT** (trừ login/register).
+> - `DEBUG=False` → **từ chối khởi động** nếu thiếu `SECRET_KEY`/`ALLOWED_HOSTS` (bảo vệ ngược).
+> - Dùng GitHub Actions thì không cần chạy lệnh trên — workflow tự: migrate → deploy → smoke test.
 
 Lấy URL thành phẩm:
 
@@ -87,9 +87,9 @@ Cách A — Cloud Run Job (chuẩn):
 ```bash
 gcloud run jobs create wms-backend-migrate \
   --image $IMAGE:latest --region $REGION --task-timeout 900s \
-  --set-env-vars RUN_MIGRATIONS=1,DEBUG=False,ENABLE_DEMO_SEED=False \
-  --set-env-vars ALLOWED_HOSTS=* \
-  --set-secrets SECRET_KEY=wms-secret-key:latest,DATABASE_URL=wms-database-url:latest
+  --set-env-vars RUN_MIGRATIONS=1,DEBUG=False,ENABLE_DEMO_SEED=False,ALLOWED_HOSTS=* \
+  --set-env-vars SECRET_KEY=<SECRET_KEY> \
+  --set-env-vars DATABASE_URL='postgresql://...'
 gcloud run jobs execute wms-backend-migrate --region $REGION
 ```
 
