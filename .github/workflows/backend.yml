@@ -107,5 +107,13 @@ jobs:
             SECRET_KEY=${{ secrets.SECRET_KEY }}
             DATABASE_URL=${{ secrets.DATABASE_URL }}
 
+      - name: Allow unauthenticated access (Vercel gọi API)
+        run: |
+          gcloud run services add-iam-policy-binding ${{ env.SERVICE }} \
+            --region ${{ env.REGION }} \
+            --member="allUsers" \
+            --role="roles/run.invoker" \
+            --quiet
+
       - name: Smoke test
         run: curl -fsS "${{ steps.deploy.outputs.url }}/healthz/" -o /dev/null
