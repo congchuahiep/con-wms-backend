@@ -1,0 +1,8 @@
+# Shell script luôn dùng LF — CRLF sẽ làm hỏng shebang/`sh` bên trong container
+*.sh text eol=lf
+
+# File cấu hình/dữ liệu chuẩn hóa line ending
+*.py text eol=lf
+Dockerfile text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf

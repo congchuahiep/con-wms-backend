@@ -82,12 +82,15 @@ Dán URL này vào Vercel: `NEXT_PUBLIC_API_URL=https://...run.app` (+ `NEXT_PUB
 > ✅ Nếu dùng GitHub Actions: job `migrate` chạy **tự động trước job deploy** (trong runner,
 > dùng `DATABASE_URL` secret). Chỉ làm thủ công khi cần migrate ngoài pipeline.
 
-Cách A — Cloud Run Job (chuẩn):
+Cách A — Cloud Run Job (chuẩn): container chỉ serve server, nên job migrate
+bắt buộc ghi đè lệnh chạy:
 
 ```bash
 gcloud run jobs create wms-backend-migrate \
   --image $IMAGE:latest --region $REGION --task-timeout 900s \
-  --set-env-vars RUN_MIGRATIONS=1,DEBUG=False,ENABLE_DEMO_SEED=False,ALLOWED_HOSTS=* \
+  --command .venv/bin/python \
+  --args manage.py,migrate,--noinput \
+  --set-env-vars DEBUG=False,ENABLE_DEMO_SEED=False,ALLOWED_HOSTS=* \
   --set-env-vars SECRET_KEY=<SECRET_KEY> \
   --set-env-vars DATABASE_URL='postgresql://...'
 gcloud run jobs execute wms-backend-migrate --region $REGION
@@ -97,8 +100,10 @@ Cách B — nhanh tại chỗ (chỉ khi có quyền truy cập DB):
 
 ```bash
 docker build -t con-wms-backend:local .
-docker run --rm -e RUN_MIGRATIONS=1 -e DATABASE_URL='postgresql://...' \
-  -e SECRET_KEY=x -e DEBUG=False -e ALLOWED_HOSTS=* con-wms-backend:local
+docker run --rm --entrypoint "" \
+  -e DEBUG=False -e SECRET_KEY=x -e ALLOWED_HOSTS=* \
+  -e DATABASE_URL='postgresql://...' con-wms-backend:local \
+  .venv/bin/python manage.py migrate --noinput
 ```
 
 Kiểm tra nhanh dịch vụ: `curl https://<service>.run.app/healthz/` → `{"status": "ok"}`

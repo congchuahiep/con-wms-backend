@@ -5,7 +5,11 @@ from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from catalog.models import Material
-from catalog.serializers import SimpleMaterialSerializer, SimpleUnitSerializer
+from catalog.serializers import (
+    SimpleCategorySerializer,
+    SimpleMaterialSerializer,
+    SimpleUnitSerializer,
+)
 from iam.models import User
 from sites.models import Site
 from supplier.models import Supplier
@@ -557,6 +561,15 @@ class VoidStocktakeNoteSerializer(serializers.Serializer):
     reason = serializers.CharField(required=True, allow_blank=False)
 
 
+class StockBalanceMaterialSerializer(SimpleMaterialSerializer):
+    """Material trong bảng tồn kho — kèm cả category."""
+
+    category = SimpleCategorySerializer(read_only=True)
+
+    class Meta(SimpleMaterialSerializer.Meta):
+        fields = [*SimpleMaterialSerializer.Meta.fields, "category"]
+
+
 class StockBalanceSerializer(serializers.Serializer):
     """Tồn kho — được tính động từ sổ kho, không lưu DB."""
 
@@ -569,10 +582,10 @@ class StockBalanceSerializer(serializers.Serializer):
     )
     stock_value = serializers.SerializerMethodField()
 
-    @extend_schema_field(SimpleMaterialSerializer())
+    @extend_schema_field(StockBalanceMaterialSerializer())
     def get_material(self, row):
         material = self.context["materials"].get(row["material_id"])
-        return SimpleMaterialSerializer(material).data if material else None
+        return StockBalanceMaterialSerializer(material).data if material else None
 
     @extend_schema_field(SimpleUnitSerializer())
     def get_unit(self, row):

@@ -415,7 +415,7 @@ class StockBalanceViewSet(viewsets.ReadOnlyModelViewSet):
             m.id: m
             for m in Material.objects.filter(
                 id__in=[r["material_id"] for r in rows]
-            ).select_related("unit")
+            ).select_related("unit", "category")
         }
         warehouses = {
             w.id: w
